@@ -4,25 +4,26 @@ module WFF(
     match,
     applyMapLeft,
     applyMapRight,
-    matchOne,
-    applyMap,
     reLabel,
     reLabelAll
 ) where
 
 import Data.Function (on)
+import Control.Applicative (liftA2)
 import Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as M
-import Mapping (Mapping(..), BiMapping(..))
 import Control.Monad.State (State)
 import qualified Control.Monad.State as S
 
--- Logical formula datatype
+import Mapping (Mapping(..), BiMapping(..))
+
+-- Logical connectives
 infix 5 :|:
 infix 5 :&:
 infix 5 :>:
 infix 5 :=:
 
+-- Logical formula datatype
 data WFF c =
     Prop c |                -- Proposition
     Not (WFF c) |           -- Negation
@@ -82,13 +83,23 @@ instance Monad WFF where
     (wff1 :>: wff2) >>= f = ((:>:) `on` (>>= f)) wff1 wff2
     (wff1 :=: wff2) >>= f = ((:=:) `on` (>>= f)) wff1 wff2
 
+-- Fold over the propositions in left to right order
 instance Foldable WFF where
     foldMap f (Prop prop) = f prop
     foldMap f (Not wff) = foldMap f wff
-    foldMap f (wff1 :|: wff2) = foldMap f wff1 `mappend` foldMap f wff2
-    foldMap f (wff1 :&: wff2) = foldMap f wff1 `mappend` foldMap f wff2
-    foldMap f (wff1 :>: wff2) = foldMap f wff1 `mappend` foldMap f wff2
-    foldMap f (wff1 :=: wff2) = foldMap f wff1 `mappend` foldMap f wff2
+    foldMap f (wff1 :|: wff2) = (mappend `on` foldMap f) wff1 wff2
+    foldMap f (wff1 :&: wff2) = (mappend `on` foldMap f) wff1 wff2
+    foldMap f (wff1 :>: wff2) = (mappend `on` foldMap f) wff1 wff2
+    foldMap f (wff1 :=: wff2) = (mappend `on` foldMap f) wff1 wff2
+
+-- Traverse the propositions left to right
+instance Traversable WFF where
+    sequenceA (Prop prop) = Prop <$> prop
+    sequenceA (Not wff) = Not <$> sequenceA wff
+    sequenceA (wff1 :|: wff2) = (liftA2 (:|:) `on` sequenceA) wff1 wff2
+    sequenceA (wff1 :&: wff2) = (liftA2 (:&:) `on` sequenceA) wff1 wff2
+    sequenceA (wff1 :>: wff2) = (liftA2 (:>:) `on` sequenceA) wff1 wff2
+    sequenceA (wff1 :=: wff2) = (liftA2 (:=:) `on` sequenceA) wff1 wff2
 
 -- Nice rendering for the user
 rendersPrec :: Int -> (c -> String) -> WFF c -> ShowS
@@ -144,56 +155,22 @@ applyMapRight m wff = do
         Nothing -> Prop $ Right prop
 
 {-
-    Match a general WFF to one after substitutions have been made,
-    returning those substitutions
--}
-matchOne :: (Ord x, Eq y) => WFF x -> WFF y -> Mapping x (WFF y)
-matchOne (Prop prop) wff = Mapping $ Just $ M.singleton prop wff
-matchOne (Not wff1) (Not wff2) = matchOne wff1 wff2
-matchOne (left1 :|: right1) (left2 :|: right2) =
-    matchOne left1 left2 <> matchOne right1 right2
-matchOne (left1 :&: right1) (left2 :&: right2) =
-    matchOne left1 left2 <> matchOne right1 right2
-matchOne (left1 :>: right1) (left2 :>: right2) =
-    matchOne left1 left2 <> matchOne right1 right2
-matchOne (left1 :=: right1) (left2 :=: right2) =
-    matchOne left1 left2 <> matchOne right1 right2
-matchOne _ _ = Mapping Nothing
-
-{-
-    Apply substitutions, will error if a proposition has no substitution.
-    To avoid this error, use applyMapLeft.
--}
-applyMap :: Ord x => Map x (WFF y) -> WFF x -> WFF y
-applyMap m wff = do
-    prop <- wff
-    case M.lookup prop m of
-        Just newWff -> newWff
-        Nothing -> error
-            "Incomplete substitution map, use applyMapLeft instead of applyMap"
-
-
-
-{-
     Given an infinite list of proposition labels,
     replaces the propositions in a wff with the ones in the labels
 -}
 reLabel :: Ord x => [y] -> WFF x -> WFF y
 reLabel labels wff = S.evalState (reLabelState wff) (labels, M.empty)
 
+-- Relabels all formulas in a list
 reLabelAll :: (Ord x, Traversable t) => [y] -> t (WFF x) -> t (WFF y)
 reLabelAll labels list = S.evalState (traverse reLabelState list) (labels, M.empty)
 
 reLabelState :: Ord x => WFF x -> State ([y], Map x y) (WFF y)
-reLabelState (Prop prop) = do
-    (free, used) <- S.get
+reLabelState = sequenceA . fmap reLabelProp
+
+reLabelProp :: Ord x => x -> State ([y], Map x y) y
+reLabelProp prop = S.get >>= \(free, used) ->
     case M.lookup prop used of
-        Just label -> return $ Prop label
-        Nothing -> do
+        Just label -> return label
+        Nothing -> head free <$
             S.put (tail free, M.insert prop (head free) used)
-            return $ Prop $ head free
-reLabelState (Not wff) = Not <$> reLabelState wff
-reLabelState (left :|: right) = (:|:) <$> reLabelState left <*> reLabelState right
-reLabelState (left :&: right) = (:&:) <$> reLabelState left <*> reLabelState right
-reLabelState (left :>: right) = (:>:) <$> reLabelState left <*> reLabelState right
-reLabelState (left :=: right) = (:=:) <$> reLabelState left <*> reLabelState right

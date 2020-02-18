@@ -8,22 +8,25 @@ import qualified Data.Map.Lazy as M
 import qualified Data.Map.Merge.Lazy as Merge
 import Control.Monad (join)
 
-mergeErr :: (Ord k, Eq v) => Map k v -> Map k v -> Maybe (Map k v)
-mergeErr = Merge.mergeA
+-- Union maps, keeping both values if they are equal, returning Nothing otherwise
+union :: (Ord k, Eq v) => Map k v -> Map k v -> Maybe (Map k v)
+union = Merge.mergeA
     Merge.preserveMissing
     Merge.preserveMissing
     (Merge.zipWithAMatched $ \_ x y -> if x==y then Just x else Nothing)
 
+-- Map with monoid instance by union that might fail
 newtype Mapping k v = Mapping
     { getMap :: Maybe (Map k v) }
     deriving (Show)
 
 instance (Ord k, Eq v) => Semigroup (Mapping k v) where
-    Mapping m1 <> Mapping m2 = Mapping $ join $ mergeErr <$> m1 <*> m2
+    Mapping m1 <> Mapping m2 = Mapping $ join $ union <$> m1 <*> m2
 
 instance (Ord k, Eq v) => Monoid (Mapping k v) where
     mempty = Mapping $ Just M.empty
 
+-- Pair of maps with monoid instance by union that might fail
 newtype BiMapping m x y = BiMapping
     { getMaps :: Maybe ( Map x (m y), Map y (m x) ) }
     deriving (Show)

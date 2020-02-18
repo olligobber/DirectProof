@@ -1,9 +1,9 @@
-A proof type that allows composition (that can fail? or start/end are types?), mapping (probably a monad)
+A proof type that allows composition, mapping (probably a monad)
 - Separate equivalence (reversible/nestable) and implication proofs
 - Generic variables that allow matching and replacement
 
 Main method that has
-- Premises to conjunction
+- Premises to conjunction (?)
 - To/from DNF equivalence proof
 - DNF datatype to contain two sets of clauses, with conversion to normal WFF and Proofs
 - DNF clause expansion

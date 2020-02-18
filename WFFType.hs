@@ -9,13 +9,13 @@ module WFFType (
     type (<->)()
 ) where
 
-data And a b
-data Or a b
-data Implies a b
-data Equivalent a b
-data Not a
+infix 5 /\
+infix 5 \/
+infix 5 -->
+infix 5 <->
 
-type (/\) = And
-type (\/) = Or
-type (-->) = Implies
-type (<->) = Equivalent
+data (/\) a b
+data (\/) a b
+data (-->) a b
+data (<->) a b
+data Not a
