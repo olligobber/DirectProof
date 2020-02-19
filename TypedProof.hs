@@ -4,10 +4,10 @@
 
 module TypedProof (
     -- types and conversions
-    type (|-)(), type (===)(), toTyped, invert, toPlain
-    --lifts
-    liftAnd1, liftAnd2, liftOr1, liftOr2, liftImplies1, liftImplies2,
-    liftEquiv1, liftEquiv2, liftNot,
+    type (|-)(), type (===)(), invert, toTyped, toPlain,
+    -- lifts
+    liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
+    liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot,
     -- equivalence rules
     deMorgans1, deMorgans2, commutationOr, commutationAnd, associationOr,
     associationAnd, distribution1, distribution2, doubleNegation,
@@ -21,7 +21,8 @@ import Prelude hiding (id, (.)) -- Control.Category redefines these
 import Data.Text (Text)
 import Control.Category
 
-import Proof
+import Proof (Proof(Proof))
+import qualified Proof as P
 import ReLabel (reLabel)
 import WFF (WFF(..))
 import qualified WFF as W
@@ -32,11 +33,11 @@ infix 2 |-
 infix 2 ===
 
 -- A one directional proof
-newtype (|-) start end = TypedProof { getPlain :: Proof Integer}
+newtype (|-) start end = TypedProof { toPlain :: Proof Integer}
 
 instance Category (|-) where
-    id = TypedProof $ Proof [Prop 1] []
-    (TypedProof p2) . (TypedProof p1) = TypedProof $ reLabel $ compose p1 p2
+    id = TypedProof mempty
+    (TypedProof p2) . (TypedProof p1) = TypedProof $ p1 <> p2
 
 -- Two directional proof
 newtype (===) a b = IsoProof { toTyped :: a |- b }
@@ -46,46 +47,44 @@ instance Category (===) where
     IsoProof p2 . IsoProof p1 = IsoProof $ p2 . p1
 
 invert :: a === b -> b === a
-invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ Proof
-    (reverse $ formulas p)
-    (reverse $ reasons p)
+invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
 -- Lift proofs as subformulas
 
-liftAnd1 :: a === b -> a /\ c === b /\ c
-liftAnd1 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (:&: Prop Nothing) $ Just <$> p
+liftAndRight :: a === b -> a /\ c === b /\ c
+liftAndRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:&:) p
 
-liftAnd2 :: a === b -> c /\ a === c /\ b
-liftAnd2 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (Prop Nothing :&:) $ Just <$> p
+liftAndLeft :: a === b -> c /\ a === c /\ b
+liftAndLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftLeft (:&:) p
 
-liftOr1 :: a === b -> a \/ c === b \/ c
-liftOr1 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (:|: Prop Nothing) $ Just <$> p
+liftOrRight :: a === b -> a \/ c === b \/ c
+liftOrRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:|:) p
 
-liftOr2 :: a === b -> c \/ a === c \/ b
-liftOr2 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (Prop Nothing :|:) $ Just <$> p
+liftOrLeft :: a === b -> c \/ a === c \/ b
+liftOrLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftLeft (:|:) p
 
-liftImplies1 :: a === b -> a --> c === b --> c
-liftImplies1 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (:>: Prop Nothing) $ Just <$> p
+liftImpliesRight :: a === b -> a --> c === b --> c
+liftImpliesRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:>:) p
 
-liftImplies2 :: a === b -> c --> a === c --> b
-liftImplies2 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (Prop Nothing :>:) $ Just <$> p
+liftImpliesLeft :: a === b -> c --> a === c --> b
+liftImpliesLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftLeft (:>:) p
 
-liftEquiv1 :: a === b -> a <-> c === b <-> c
-liftEquiv1 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (:=: Prop Nothing) $ Just <$> p
+liftEquivRight :: a === b -> a <-> c === b <-> c
+liftEquivRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:=:) p
 
-liftEquiv2 :: a === b -> c <-> a === c <-> b
-liftEquiv2 (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ reLabel $
-    mapWFF (Prop Nothing :=:) $ Just <$> p
+liftEquivLeft :: a === b -> c <-> a === c <-> b
+liftEquivLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftLeft (:=:) p
 
 liftNot :: a === b -> Not a === Not b
-liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ mapWFF Not p
+liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p
 
 -- Equivalence rules
 
