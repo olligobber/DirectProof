@@ -33,7 +33,7 @@ newtype BiMapping m x y = BiMapping
 
 instance (Ord x, Ord y, Eq (m x), Eq (m y)) => Semigroup (BiMapping m x y) where
     BiMapping (Just (f1,b1)) <> BiMapping (Just (f2,b2)) =
-        BiMapping $ (,) <$> (mergeErr f1 f2) <*> (mergeErr b1 b2)
+        BiMapping $ (,) <$> (union f1 f2) <*> (union b1 b2)
     _ <> _ = BiMapping Nothing
 
 instance (Ord x, Ord y, Eq (m x), Eq (m y)) => Monoid (BiMapping m x y) where
