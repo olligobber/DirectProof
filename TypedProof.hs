@@ -4,7 +4,7 @@
 
 module TypedProof (
     -- types and conversions
-    type (|-)(), type (===)(), invert, toTyped, toPlain,
+    type (|-)(), type (===)(), invert, toTyped, toPlain, render,
     -- lifts
     liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot,
@@ -19,7 +19,9 @@ module TypedProof (
 
 import Prelude hiding (id, (.)) -- Control.Category redefines these
 import Data.Text (Text)
+import qualified Data.Text as T
 import Control.Category
+import Data.String (fromString)
 
 import Proof (Proof(Proof))
 import qualified Proof as P
@@ -38,6 +40,9 @@ newtype (|-) start end = TypedProof { toPlain :: Proof Integer}
 instance Category (|-) where
     id = TypedProof mempty
     (TypedProof p2) . (TypedProof p1) = TypedProof $ p1 <> p2
+
+render :: a |- b -> Text
+render (TypedProof pf) = P.render (fromString . show) pf
 
 -- Two directional proof
 newtype (===) a b = IsoProof { toTyped :: a |- b }

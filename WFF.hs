@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module WFF(
     WFF(..),
     render,
@@ -12,6 +14,8 @@ import Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as M
 import Control.Monad (ap)
 import Data.Traversable (foldMapDefault)
+import Data.Text (Text)
+import qualified Data.Text as T
 
 import Mapping (Mapping(..), BiMapping(..))
 
@@ -82,21 +86,28 @@ instance Traversable WFF where
     sequenceA (wff1 :>: wff2) = (liftA2 (:>:) `on` sequenceA) wff1 wff2
     sequenceA (wff1 :=: wff2) = (liftA2 (:=:) `on` sequenceA) wff1 wff2
 
--- Nice rendering for the user
-rendersPrec :: Int -> (c -> String) -> WFF c -> ShowS
-rendersPrec _ rend (Prop prop) = showString $ rend prop
-rendersPrec prec rend (Not wff) = showParen (prec>2) $
-    showString "¬" . rendersPrec 2 rend wff
-rendersPrec prec rend (wff1 :|: wff2) = showParen (prec>1) $
-    rendersPrec 2 rend wff1 . showString "∨" . rendersPrec 2 rend wff2
-rendersPrec prec rend (wff1 :&: wff2) = showParen (prec>1) $
-    rendersPrec 2 rend wff1 . showString "∧" . rendersPrec 2 rend wff2
-rendersPrec prec rend (wff1 :>: wff2) = showParen (prec>1) $
-    rendersPrec 2 rend wff1 . showString "→" . rendersPrec 2 rend wff2
-rendersPrec prec rend (wff1 :=: wff2) = showParen (prec>1) $
-    rendersPrec 2 rend wff1 . showString "↔" . rendersPrec 2 rend wff2
+showParenT :: Bool -> (Text -> Text) -> Text -> Text
+showParenT False t = t
+showParenT True t = ("(" <>) . t . (")" <>)
 
-render :: (c -> String) -> WFF c -> String
+showText :: Text -> (Text -> Text)
+showText = (<>)
+
+-- Nice rendering for the user
+rendersPrec :: Int -> (c -> Text) -> WFF c -> Text -> Text
+rendersPrec _ rend (Prop prop) = showText $ rend prop
+rendersPrec prec rend (Not wff) = showParenT (prec>2) $
+    showText "¬" . rendersPrec 2 rend wff
+rendersPrec prec rend (wff1 :|: wff2) = showParenT (prec>1) $
+    rendersPrec 2 rend wff1 . showText "∨" . rendersPrec 2 rend wff2
+rendersPrec prec rend (wff1 :&: wff2) = showParenT (prec>1) $
+    rendersPrec 2 rend wff1 . showText "∧" . rendersPrec 2 rend wff2
+rendersPrec prec rend (wff1 :>: wff2) = showParenT (prec>1) $
+    rendersPrec 2 rend wff1 . showText "→" . rendersPrec 2 rend wff2
+rendersPrec prec rend (wff1 :=: wff2) = showParenT (prec>1) $
+    rendersPrec 2 rend wff1 . showText "↔" . rendersPrec 2 rend wff2
+
+render :: (c -> Text) -> WFF c -> Text
 render rend wff = rendersPrec 2 rend wff ""
 
 {-

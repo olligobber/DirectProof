@@ -1,13 +1,15 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module DirectedProof (
     -- Types and conversions
     DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
+    render,
     -- Lifts
     liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
 ) where
+
+import Data.Text (Text)
 
 import TypedProof (type (|-)(), type (===)())
 import qualified TypedProof as T
@@ -58,6 +60,9 @@ fromIso = EquivProof . fromTyped . T.toTyped
 
 invert :: EquivProof x -> EquivProof x
 invert = EquivProof . DirectedProof . P.invert . toPlain . toDirected
+
+render :: (x -> Text) -> DirectedProof x -> Text
+render rend (DirectedProof pf) = P.render rend pf
 
 liftAndRight :: Labeling x => EquivProof x -> EquivProof x
 liftAndRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $

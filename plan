@@ -9,3 +9,12 @@ Main method that has
 - DNF clause expansion
 - DNF clause removal
 - DNF rearrangements
+
+The proof:
+- Every formula can be converted to/from DNF and that DNF re-arranged using equivalence rules
+- Each conjunction in the assumption must either
+    - Contain an atom and its negation, so it can be removed
+        ( (A /\ ~A /\ B) \/ C |- C )
+    - Contain some propositions (A1,...), negated propositions (~B1,...), and not contain the remaining propositions (C1,...), and thus the assumption is true when A1,... are true, B1,... are false, and C1,... are undefined, so the conclusion is also true in this case and some conjunction in it must also not contain (C1,...), and those atoms it does contain must be a subset of (A1,...,~B1,...), so this conjunction can be turned into it
+        ( A \/ C |- (A /\ B) \/ C )
+- Once each conjunction has been converted from one in the assumption to one in the conclusion, repetitions can be removed by idempotence, and any missing clauses added by addition
