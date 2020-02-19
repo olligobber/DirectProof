@@ -56,37 +56,37 @@ invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
 -- Lift proofs as subformulas
 
-liftAndRight :: a === b -> a /\ c === b /\ c
-liftAndRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:&:) p
-
-liftAndLeft :: a === b -> c /\ a === c /\ b
+liftAndLeft :: a === b -> a /\ c === b /\ c
 liftAndLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
     P.liftLeft (:&:) p
 
-liftOrRight :: a === b -> a \/ c === b \/ c
-liftOrRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:|:) p
+liftAndRight :: a === b -> c /\ a === c /\ b
+liftAndRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:&:) p
 
-liftOrLeft :: a === b -> c \/ a === c \/ b
+liftOrLeft :: a === b -> a \/ c === b \/ c
 liftOrLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
     P.liftLeft (:|:) p
 
-liftImpliesRight :: a === b -> a --> c === b --> c
-liftImpliesRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:>:) p
+liftOrRight :: a === b -> c \/ a === c \/ b
+liftOrRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:|:) p
 
-liftImpliesLeft :: a === b -> c --> a === c --> b
+liftImpliesLeft :: a === b -> a --> c === b --> c
 liftImpliesLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
     P.liftLeft (:>:) p
 
-liftEquivRight :: a === b -> a <-> c === b <-> c
-liftEquivRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:=:) p
+liftImpliesRight :: a === b -> c --> a === c --> b
+liftImpliesRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:>:) p
 
-liftEquivLeft :: a === b -> c <-> a === c <-> b
+liftEquivLeft :: a === b -> a <-> c === b <-> c
 liftEquivLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
     P.liftLeft (:=:) p
+
+liftEquivRight :: a === b -> c <-> a === c <-> b
+liftEquivRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
+    P.liftRight (:=:) p
 
 liftNot :: a === b -> Not a === Not b
 liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p
