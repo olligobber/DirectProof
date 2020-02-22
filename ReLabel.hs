@@ -31,6 +31,8 @@ class Labeling x where
     reLabelOne :: Two x -> State x -> (x, State x)
     -- A single label to be used when one extra is needed
     single :: x
+    -- Labels that should be preserved over others
+    preserve :: x -> Bool
 
 -- Relabel all elements of a structure
 reLabel :: (Labeling x, Traversable t) => t (Two x) -> t x
@@ -51,6 +53,7 @@ instance Labeling Integer where
                 (M.insert oldLabel (nextInt state) $ usedInt state)
             )
     single = 1
+    preserve = const False
 
 -- Either a value or an index that will be relabelled properly
 data SmartIndex x = Index Integer | Value x deriving (Eq, Ord, Show)
@@ -85,3 +88,5 @@ instance Labeling (SmartIndex x) where
                     (M.insert (Right oldLabel) (nextSmart state) $ usedSmart state)
                 )
     single = Index 1
+    preserve (Index _) = False
+    preserve (Value _) = True

@@ -11,11 +11,11 @@ module DirectedProof (
 
 import Data.Text (Text)
 
-import TypedProof (type (|-)(), type (===)())
+import TypedProof (type (|-)(), type (|~)())
 import qualified TypedProof as T
 import Proof (Proof)
 import qualified Proof as P
-import ReLabel
+import ReLabel (Labeling)
 import WFF (WFF(..))
 
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
@@ -55,7 +55,7 @@ instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
     mempty = EquivProof mempty
 
-fromIso :: a === b -> EquivProof Integer
+fromIso :: a |~ b -> EquivProof Integer
 fromIso = EquivProof . fromTyped . T.toTyped
 
 invert :: EquivProof x -> EquivProof x

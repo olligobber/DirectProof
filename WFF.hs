@@ -3,9 +3,10 @@
 module WFF(
     WFF(..),
     render,
+    MatchError(..),
+    matchPref,
     match,
-    applyMapLeft,
-    applyMapRight
+    applyMap
 ) where
 
 import Data.Function (on)
@@ -13,11 +14,14 @@ import Control.Applicative (liftA2)
 import Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as M
 import Control.Monad (ap)
+import Control.Monad.Identity (runIdentity)
 import Data.Traversable (foldMapDefault)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Control.Monad.State (State, StateT)
+import qualified Control.Monad.State as S
 
-import Mapping (Mapping(..), BiMapping(..))
+import UnionFind (UnionFind)
+import qualified UnionFind as U
 
 -- Logical connectives
 infix 5 :|:
@@ -110,38 +114,90 @@ rendersPrec prec rend (wff1 :=: wff2) = showParenT (prec>1) $
 render :: (c -> Text) -> WFF c -> Text
 render rend wff = rendersPrec 2 rend wff ""
 
-{-
-    Match two WFFs, returning substitutions to turn each into the other
-    after substitutions have been applied
--}
-match :: (Ord x, Ord y) => WFF x -> WFF y -> BiMapping WFF x y
-match a@(Prop prop1) b@(Prop prop2) = BiMapping $
-    Just (M.singleton prop1 b, M.singleton prop2 a)
-match (Prop prop) wff = BiMapping $ Just (M.singleton prop wff, M.empty)
-match wff (Prop prop) = BiMapping $ Just (M.empty, M.singleton prop wff)
-match (Not wff1) (Not wff2) = match wff1 wff2
-match (left1 :|: right1) (left2 :|: right2) =
-    match left1 left2 <> match right1 right2
-match (left1 :&: right1) (left2 :&: right2) =
-    match left1 left2 <> match right1 right2
-match (left1 :>: right1) (left2 :>: right2) =
-    match left1 left2 <> match right1 right2
-match (left1 :=: right1) (left2 :=: right2) =
-    match left1 left2 <> match right1 right2
-match _ _ = BiMapping Nothing
+-- Possible errors that can occur when trying to match WFFs
+data MatchError x =
+    -- Two sub-WFFs can have differing structures
+    StructureError (WFF x) (WFF x) |
+    -- A proposition can be matched to a WFF containing itself
+    RecursionError x (WFF x)
+    deriving Show
 
--- Apply the substitutions to the left wff
-applyMapLeft :: Ord x => Map x (WFF y) -> WFF x -> WFF (Either x y)
-applyMapLeft m wff = do
-    prop <- wff
-    case M.lookup prop m of
-        Just newWff -> Right <$> newWff
-        Nothing -> Prop $ Left prop
+-- Convert stateful computations from UnionFind to use the Either monad
+toUWFF :: State (UnionFind (Map x) x (Maybe (WFF x))) v ->
+    StateT (UnionFind (Map x) x (Maybe (WFF x))) (Either (MatchError x)) v
+toUWFF = S.mapStateT (return . runIdentity)
 
--- Apply the substitutions to the right wff
-applyMapRight :: Ord y => Map y (WFF x) -> WFF y -> WFF (Either x y)
-applyMapRight m wff = do
-    prop <- wff
-    case M.lookup prop m of
-        Just newWff -> Left <$> newWff
-        Nothing -> Prop $ Right prop
+-- Statefully match two WFFs, with a function to determine prefered propositions
+matchS :: Ord x => (x -> Bool) -> WFF x -> WFF x ->
+    StateT (UnionFind (Map x) x (Maybe (WFF x))) (Either (MatchError x)) ()
+matchS f (Prop prop1) (Prop prop2) = do
+    merged <- toUWFF $ U.union prop1 prop2
+    newrep <- toUWFF $ U.rep prop1
+    case merged of
+        Nothing -> return ()
+        Just (Nothing, Nothing) | f prop1 && newrep == prop2 ->
+            toUWFF $ U.set prop1 (Just $ Prop prop1)
+        Just (Nothing, Nothing) | f prop2 && newrep == prop1 ->
+            toUWFF $ U.set prop1 (Just $ Prop prop2)
+        Just (Nothing, x) -> toUWFF $ U.set prop1 x
+        Just (x, Nothing) -> toUWFF $ U.set prop1 x
+        Just (Just (Prop _), x) -> toUWFF $ U.set prop1 x
+        Just (x, Just (Prop _)) -> toUWFF $ U.set prop1 x
+        Just (Just x, Just y) -> matchS f x y
+matchS f (Prop prop1) y = do
+    val <- toUWFF $ U.value prop1
+    case val of
+        Nothing -> toUWFF $ U.set prop1 $ Just y
+        Just (Prop _) -> toUWFF $ U.set prop1 $ Just y
+        Just x -> matchS f x y
+matchS f x (Prop prop1) = matchS f (Prop prop1) x
+matchS f (Not wff1) (Not wff2) = matchS f wff1 wff2
+matchS f (left1 :|: right1) (left2 :|: right2) =
+    matchS f left1 left2 >> matchS f right1 right2
+matchS f (left1 :&: right1) (left2 :&: right2) =
+    matchS f left1 left2 >> matchS f right1 right2
+matchS f (left1 :>: right1) (left2 :>: right2) =
+    matchS f left1 left2 >> matchS f right1 right2
+matchS f (left1 :=: right1) (left2 :=: right2) =
+    matchS f left1 left2 >> matchS f right1 right2
+matchS f x y = S.StateT $ const $ Left $ StructureError x y
+
+-- The first part of matching two WFFs, which collects all matched propositions
+matchPart :: Ord x => (x -> Bool) -> WFF x -> WFF x ->
+    Either (MatchError x) (Map x (WFF x))
+matchPart f x y = fmap (\(k, v) -> maybe (Prop k) id v) <$> S.evalStateT
+    (matchS f x y >> toUWFF U.flatten)
+    (U.new
+        (M.!)
+        (\m k v -> M.insert k v m)
+        (((<>) `on` foldMap (\k -> M.singleton k (k, Nothing))) x y)
+    )
+
+-- Statefully remove all occurrences of a proposition that doesn't map to itself
+flattenS :: Ord x => x -> StateT (Map x (WFF x)) (Either (MatchError x)) ()
+flattenS p = do
+    m <- S.get
+    case M.lookup p m of
+        Nothing -> return ()
+        Just (Prop q) | p == q -> return ()
+        Just w | p `elem` w -> S.StateT $ const $ Left $ RecursionError p w
+        Just w -> S.modify (fmap (>>= \q -> if p == q then w else Prop q))
+
+-- Remove all occurrences of propositions that don't map to themselves
+flatten :: Ord x => Map x (WFF x) -> Either (MatchError x) (Map x (WFF x))
+flatten m = S.execStateT (traverse flattenS (M.keys m)) m
+
+-- Match two WFFs, using the function to prefer certain propositions
+matchPref :: Ord x => (x -> Bool) -> WFF x -> WFF x ->
+    Either (MatchError x) (Map x (WFF x))
+matchPref f x y = matchPart f x y >>= flatten
+
+-- Match two WFFs, returning a mapping to turn both into a common form
+match :: Ord x => WFF x -> WFF x -> Either (MatchError x) (Map x (WFF x))
+match = matchPref (const False)
+
+-- Apply a mapping from match to some formula
+applyMap :: Ord x => Map x (WFF x) -> WFF x -> WFF x
+applyMap m w = w >>= \p -> case M.lookup p m of
+    Nothing -> Prop p
+    Just n -> n
