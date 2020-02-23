@@ -19,6 +19,7 @@ import ReLabel (Labeling)
 import WFF (WFF(..))
 
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
+    deriving Show
 
 instance Functor DirectedProof where
     fmap f = DirectedProof . fmap f . toPlain
@@ -39,6 +40,7 @@ fromTyped :: a |- b -> DirectedProof Integer
 fromTyped = DirectedProof . T.toPlain
 
 newtype EquivProof x = EquivProof { toDirected :: DirectedProof x }
+    deriving Show
 
 instance Functor EquivProof where
     fmap f = EquivProof . fmap f . toDirected

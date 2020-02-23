@@ -28,7 +28,7 @@ data Proof x = Proof {
     formulas :: [WFF x], -- List of formulas
     reasons :: [Text], -- List of reasons
     references :: [[Int]] -- References for each reason, stored as relative indices
-}
+} deriving Show
 
 identity :: WFF x -> Proof x
 identity wff = Proof [wff] [] []
