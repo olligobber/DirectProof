@@ -3,7 +3,7 @@
 module DirectedProof (
     -- Types and conversions
     DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
-    render,
+    render, identity,
     -- Lifts
     liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
@@ -56,6 +56,9 @@ instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
 
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
     mempty = EquivProof mempty
+
+identity :: WFF x -> EquivProof x
+identity = EquivProof . DirectedProof . P.identity
 
 fromIso :: a |~ b -> EquivProof Integer
 fromIso = EquivProof . fromTyped . T.toTyped

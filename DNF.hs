@@ -4,10 +4,13 @@
 module DNF (
     EW,
     DW,
+    toDW,
     Clause(atoms),
     DNF(clauses),
     pop,
+    removeAtomsAlone,
     removeAtoms,
+    singleton,
     insertClause,
     toDNF
 ) where
@@ -39,8 +42,9 @@ newtype Clause x = Clause { atoms :: [(x,Bool)] } deriving (Show, Eq, Ord)
 newtype DNF x = DNF { clauses :: [Clause x] } deriving Show
 
 -- Removes the first clause from a DNF
-pop :: DNF x -> DNF x
-pop = DNF . tail . clauses
+pop :: DNF x -> Maybe (DNF x)
+pop (DNF [_]) = Nothing
+pop (DNF (_:clauses)) = Just $ DNF clauses
 
 {-
     Bring atoms in the sorted list to the front of the clause,
@@ -71,14 +75,41 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
             )
         return $ Clause $ right:nrights
 
--- Removes atoms in the sorted list from the clause at the front
-removeAtoms :: Ord x => [(SmartIndex x,Bool)] -> DNF (SmartIndex x) ->
-    DW x (DNF (SmartIndex x))
-removeAtoms [] dnf = return dnf
-removeAtoms _ dnf@(DNF (Clause [_]:_)) = return dnf -- Cannot remove all elements
-removeAtoms removess@(remove:removes)
-    dnf@(DNF (clause@(Clause (atom:atos):clauses)))
-    | remove < atom = removeAtoms removes dnf
+-- Removes atoms in the sorted list from a clause, assuming the formula is alone
+removeAtomsAlone :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
+    DW x (Clause (SmartIndex x))
+removeAtomsAlone [] clause = return clause
+removeAtomsAlone _ clause@(Clause [_]) =
+    return clause -- Cannot remove all elements
+removeAtomsAlone removess@(remove:removes) clause@(Clause (atom:atos))
+    | remove < atom = removeAtomsAlone removes clause
+    | remove == atom = do
+        W.tell $ Index <$> D.fromTyped (
+            T.toTyped T.commutationAnd >>>
+            T.simplification
+            :: a /\ b |- b
+            )
+        removeAtomsAlone removes $ Clause atos
+    | atos `isSubsequenceOf` removess = do
+        W.tell $ Index <$> D.fromTyped (T.simplification :: a /\ b |- a)
+        return $ Clause [atom]
+    | otherwise = do
+        nclause <- toDW $ bringForward removess $ Clause atos
+        W.tell $ Index <$> D.fromTyped (
+            T.toTyped T.commutationAnd >>>
+            T.simplification
+            :: a /\ b |- b
+            )
+        return $ nclause
+
+-- Removes atoms in the sorted list from a clause, assuming the formula is of
+-- the form clause | other
+removeAtoms :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
+    DW x (Clause (SmartIndex x))
+removeAtoms [] clause = return clause
+removeAtoms _ clause@(Clause [_]) = return clause -- Cannot remove all elements
+removeAtoms removess@(remove:removes) clause@(Clause (atom:atos))
+    | remove < atom = removeAtoms removes clause
     | remove == atom = do
         W.tell $ Index <$> D.fromTyped (
             T.toTyped
@@ -87,7 +118,7 @@ removeAtoms removess@(remove:removes)
             T.toTyped T.commutationOr
             :: (a /\ b) \/ c |- b \/ c
             )
-        removeAtoms removes $ DNF $ Clause atos : clauses
+        removeAtoms removes $ Clause atos
     | atos `isSubsequenceOf` removess = do
         W.tell $ Index <$> D.fromTyped (
             T.toTyped (T.commutationOr >>> T.distribution2) >>>
@@ -95,7 +126,7 @@ removeAtoms removess@(remove:removes)
             T.toTyped T.commutationOr
             :: (a /\ b) \/ c |- a \/ c
             )
-        return $ DNF $ Clause [atom] : clauses
+        return $ Clause [atom]
     | otherwise = do
         nclause <- toDW $ bringForward removess $ Clause atos
         W.tell $ Index <$> D.fromTyped (
@@ -105,7 +136,10 @@ removeAtoms removess@(remove:removes)
             T.toTyped T.commutationOr
             :: (a /\ b) \/ c |- b \/ c
             )
-        return $ DNF $ nclause:clauses
+        return $ nclause
+
+singleton :: Clause x -> DNF x
+singleton = DNF . pure
 
 -- Adds a clause to a DNF, with the proof starting from (clause | dnf)
 insertClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
@@ -366,7 +400,7 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
 
 -- Converts a formula to DNF and returns a proof WFF |~ DNF
 toDNF :: Ord x => WFF (SmartIndex x) -> EW x (DNF (SmartIndex x))
-toDNF wff =
+toDNF wff = W.censor (D.identity wff <>) $
     removeImpEq wff >>=
     moveNotIn >>=
     moveAndIn >>=
