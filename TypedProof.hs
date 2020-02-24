@@ -27,6 +27,7 @@ import Proof (Proof)
 import qualified Proof as P
 import WFF (WFF(..))
 import WFFType
+import Render (Renderable(..), renders)
 
 -- Proof symbols
 infix 2 |-
@@ -39,8 +40,8 @@ instance Category (|-) where
     id = TypedProof mempty
     (TypedProof p2) . (TypedProof p1) = TypedProof $ p1 <> p2
 
-render :: a |- b -> Text
-render (TypedProof pf) = P.render (fromString . show) pf
+instance Renderable (a |- b) where
+    render (TypedProof pf) = renders (("p_" <>) . fromString . show) pf
 
 -- Two directional proof
 newtype (|~) a b = IsoProof { toTyped :: a |- b }
@@ -48,6 +49,9 @@ newtype (|~) a b = IsoProof { toTyped :: a |- b }
 instance Category (|~) where
     id = IsoProof id
     IsoProof p2 . IsoProof p1 = IsoProof $ p2 . p1
+
+instance Renderable (a |~ b) where
+    render (IsoProof pf) = render pf
 
 invert :: a |~ b -> b |~ a
 invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p

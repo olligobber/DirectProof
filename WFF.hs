@@ -2,7 +2,6 @@
 
 module WFF(
     WFF(..),
-    render,
     MatchError(..),
     matchPref,
     match,
@@ -22,6 +21,7 @@ import qualified Control.Monad.State as S
 
 import UnionFind (UnionFind)
 import qualified UnionFind as U
+import Render (RenderableF(..))
 
 -- Logical connectives
 infix 5 :|:
@@ -111,8 +111,8 @@ rendersPrec prec rend (wff1 :>: wff2) = showParenT (prec>1) $
 rendersPrec prec rend (wff1 :=: wff2) = showParenT (prec>1) $
     rendersPrec 2 rend wff1 . showText "↔" . rendersPrec 2 rend wff2
 
-render :: (c -> Text) -> WFF c -> Text
-render rend wff = rendersPrec 2 rend wff ""
+instance RenderableF WFF where
+    renders rend wff = rendersPrec 2 rend wff ""
 
 -- Possible errors that can occur when trying to match WFFs
 data MatchError x =

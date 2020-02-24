@@ -34,7 +34,7 @@ type EW x = Writer (EquivProof (SmartIndex x))
 type DW x = Writer (DirectedProof (SmartIndex x))
 
 toDW :: EW x v -> DW x v
-toDW = W.mapWriter (\(r, p) -> (r, D.toDirected $ D.liftAndLeft p))
+toDW = W.mapWriter (\(r, p) -> (r, D.toDirected p))
 
 -- A disjunction of conjunctions of atoms of the form A or Not A
 -- All lists should be sorted and represent left associative formulae

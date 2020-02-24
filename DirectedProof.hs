@@ -3,7 +3,7 @@
 module DirectedProof (
     -- Types and conversions
     DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
-    render, identity,
+    identity,
     -- Lifts
     liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
@@ -17,9 +17,10 @@ import Proof (Proof)
 import qualified Proof as P
 import ReLabel (Labeling)
 import WFF (WFF(..))
+import Render (RenderableF(..))
 
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
-    deriving Show
+    deriving (Show, Eq)
 
 instance Functor DirectedProof where
     fmap f = DirectedProof . fmap f . toPlain
@@ -35,6 +36,9 @@ instance (Ord x, Labeling x) => Semigroup (DirectedProof x) where
 
 instance (Ord x, Labeling x) => Monoid (DirectedProof x) where
     mempty = DirectedProof mempty
+
+instance RenderableF DirectedProof where
+    renders rend = renders rend . toPlain
 
 fromTyped :: a |- b -> DirectedProof Integer
 fromTyped = DirectedProof . T.toPlain
@@ -57,6 +61,9 @@ instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
     mempty = EquivProof mempty
 
+instance RenderableF EquivProof where
+    renders rend = renders rend . toDirected
+
 identity :: WFF x -> EquivProof x
 identity = EquivProof . DirectedProof . P.identity
 
@@ -65,9 +72,6 @@ fromIso = EquivProof . fromTyped . T.toTyped
 
 invert :: EquivProof x -> EquivProof x
 invert = EquivProof . DirectedProof . P.invert . toPlain . toDirected
-
-render :: (x -> Text) -> DirectedProof x -> Text
-render rend (DirectedProof pf) = P.render rend pf
 
 liftAndRight :: Labeling x => EquivProof x -> EquivProof x
 liftAndRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $

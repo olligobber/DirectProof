@@ -14,7 +14,6 @@ import Control.Monad (foldM)
 
 import DNF
 import WFFType
-import DirectedProof (DirectedProof, EquivProof)
 import qualified DirectedProof as D
 import TypedProof (type (|~)(), type (|-)())
 import qualified TypedProof as T
@@ -28,7 +27,7 @@ data DNFConversion x = DNFConversion {
     inProgress :: Maybe (Clause (SmartIndex x)),
     converted :: Maybe (DNF (SmartIndex x)),
     unconverted :: Maybe (DNF (SmartIndex x))
-}
+} deriving Show
 
 -- Start the conversion process of a DNF
 startConversion :: DNF (SmartIndex x) -> DNFConversion x
@@ -40,6 +39,8 @@ startConversion dnf = DNFConversion
 -- Move inProgress to converted and get something from unconverted to progress on
 nextProgress :: Ord x => DNFConversion x ->
     EW x (Either (DNF (SmartIndex x)) (DNFConversion x))
+nextProgress (DNFConversion Nothing Nothing Nothing) = error
+    "Everything has been deleted, cannot progress"
 nextProgress (DNFConversion Nothing Nothing (Just uncon)) =
     return $ Right $ DNFConversion
         (Just $ head $ clauses uncon)
@@ -47,12 +48,27 @@ nextProgress (DNFConversion Nothing Nothing (Just uncon)) =
         (pop uncon)
 nextProgress (DNFConversion Nothing (Just conv) Nothing) =
     return $ Left conv
+nextProgress (DNFConversion Nothing (Just conv) (Just uncon)) =
+    case clauses uncon of
+        [] -> error "Invalid DNF"
+        [unc] -> do
+            W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
+            return $ Right $ DNFConversion (Just unc) (Just conv) Nothing
+        unc:_ -> do
+            W.tell $ Index <$> D.fromIso (
+                T.liftOrRight T.commutationOr >>>
+                T.associationOr >>>
+                T.commutationOr
+                :: a \/ (b \/ c) |~ b \/ (a \/ c)
+                )
+            return $ Right $ DNFConversion (Just unc) (Just conv) (pop uncon)
 nextProgress (DNFConversion (Just c) Nothing Nothing) =
     return $ Left $ singleton c
 nextProgress (DNFConversion (Just c) (Just conv) Nothing) =
     Left <$> insertClause c conv
 nextProgress (DNFConversion (Just c) Nothing (Just uncon)) =
     case clauses uncon of
+        [] -> error "Invalid DNF"
         [unc] -> do
             W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
             return $ Right $ DNFConversion
@@ -72,6 +88,7 @@ nextProgress (DNFConversion (Just c) Nothing (Just uncon)) =
                 (pop uncon)
 nextProgress (DNFConversion (Just c) (Just conv) (Just uncon)) =
     case clauses uncon of
+        [] -> error "Invalid DNF"
         [unc] -> do
             W.tell $ Index <$> D.fromIso (
                 T.associationOr >>>
@@ -98,6 +115,7 @@ getContradiction :: Eq x => Clause x -> Maybe x
 getContradiction clause = case
     filter ((==2) . length) $ groupBy ((==) `on` fst) $ atoms clause of
         [] -> Nothing
+        []:_ -> error "Empty contradiction"
         ((p,_):_):_ -> Just p
 
 -- Check if the second is a subclause of the first
@@ -133,7 +151,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                 W.tell $ Index <$> (D.toDirected . D.fromIso) (
                     T.commutationOr >>>
                     T.distribution2
-                    :: (a /\ Not a) \/ b |~ (b \/ a) /\ (b \/ Not a)
+                    :: (Not a /\ a) \/ b |~ (b \/ Not a) /\ (b \/ a)
                     )
             else
                 W.tell $ Index <$> D.fromTyped (
@@ -144,7 +162,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                         T.associationAnd
                         ) >>>
                     T.simplification
-                    :: (a /\ (Not a /\ b)) \/ c |- (c \/ a) /\ (c \/ Not a)
+                    :: (Not a /\ (a /\ b)) \/ c |- (c \/ Not a) /\ (c \/ a)
                     )
             W.tell $ Index <$> D.fromTyped (
                 T.toTyped (
@@ -154,6 +172,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                         ) >>>
                     T.liftAndRight (
                         T.commutationOr >>>
+                        T.liftOrLeft T.doubleNegation >>>
                         T.invert T.defImplication
                         )
                     ) >>>
@@ -166,7 +185,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                     T.liftOrLeft (T.invert T.doubleNegation) >>>
                     T.invert T.idempotenceOr
                     )
-                :: (b \/ a) /\ (b \/ Not a) |- b
+                :: (b \/ Not a) /\ (b \/ a) |- b
                 )
             return $ DNFConversion Nothing conv unconv
 

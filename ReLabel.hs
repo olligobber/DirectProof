@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module ReLabel (
     reLabelInt,
@@ -11,6 +12,9 @@ module ReLabel (
 import Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as M
 import qualified Control.Monad.State as S
+import Data.String (fromString)
+
+import Render (RenderableF(..))
 
 -- Relabel with 1,2..
 reLabelInt :: (Ord x, Traversable t) => t x -> t Integer
@@ -57,6 +61,10 @@ instance Labeling Integer where
 
 -- Either a value or an index that will be relabelled properly
 data SmartIndex x = Index Integer | Value x deriving (Eq, Ord, Show)
+
+instance RenderableF SmartIndex where
+    renders _ (Index i) = "t_" <> fromString (show i)
+    renders rend (Value v) = rend v
 
 instance Functor SmartIndex where
     fmap _ (Index i) = Index i

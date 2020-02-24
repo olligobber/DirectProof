@@ -9,7 +9,6 @@ module Proof (
     invert,
     liftLeft,
     liftRight,
-    render,
     simpleRule,
     complexRule
 ) where
@@ -22,13 +21,14 @@ import Data.Functor.Compose (Compose(..))
 import WFF (WFF(..))
 import qualified WFF as W
 import ReLabel (Labeling, reLabel, reLabelInt, single, preserve)
+import Render (RenderableF(..))
 
 -- Very basic proof object
 data Proof x = Proof {
     formulas :: [WFF x], -- List of formulas
     reasons :: [Text], -- List of reasons
     references :: [[Int]] -- References for each reason, stored as relative indices
-} deriving Show
+} deriving (Show, Eq)
 
 identity :: WFF x -> Proof x
 identity wff = Proof [wff] [] []
@@ -111,26 +111,26 @@ instance (Ord x, Labeling x) => Semigroup (Proof x) where
 instance (Ord x, Labeling x) => Monoid (Proof x) where
     mempty = identity $ Prop single
 
--- Nice rendering for the user
-render :: (c -> Text) -> Proof c -> Text
-render rend pf = T.unlines $
-    zipWith3 formatCol rightNumbers midFormulas leftReasons
-    where
-        formatCol n f r = T.intercalate " | " [n,f,r]
-        fullLength = length $ formulas pf
+instance RenderableF Proof where
+    renders rend pf = T.unlines $
+        zipWith3 formatCol rightNumbers midFormulas leftReasons
+        where
+            formatCol n f r = T.intercalate " | " [n,f,r]
+            fullLength = length $ formulas pf
 
-        numbers = fromString . show <$> [1..fullLength]
-        lengthNumbers = maximum $ T.length <$> numbers
-        rightNumbers = T.justifyRight lengthNumbers ' ' <$> numbers
+            numbers = fromString . show <$> [1..fullLength]
+            lengthNumbers = maximum $ T.length <$> numbers
+            rightNumbers = T.justifyRight lengthNumbers ' ' <$> numbers
 
-        rendFormulas = W.render rend <$> formulas pf
-        lengthFormulas = maximum $ T.length <$> rendFormulas
-        midFormulas = T.center lengthFormulas ' ' <$> rendFormulas
+            rendFormulas = renders rend <$> formulas pf
+            lengthFormulas = maximum $ T.length <$> rendFormulas
+            midFormulas = T.center lengthFormulas ' ' <$> rendFormulas
 
-        showReferences fs n = T.intercalate "," $ fromString . show . (+ n) <$> fs
-        fullReferences = zipWith showReferences (references pf) [2..]
-        leftReasons = "Assumption" :
-            zipWith (\x y -> T.unwords [x,y]) (reasons pf) fullReferences
+            showReferences fs n = T.intercalate "," $
+                fromString . show . (+ n) <$> fs
+            fullReferences = zipWith showReferences (references pf) [2..]
+            leftReasons = "Assumption" :
+                zipWith (\x y -> T.unwords [x,y]) (reasons pf) fullReferences
 
 -- Create a proof that applies a rule to one formula to get another
 simpleRule :: WFF x -> WFF x -> Text -> Proof x
