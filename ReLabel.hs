@@ -18,8 +18,8 @@ import Render (RenderableF(..))
 
 -- Relabel with 1,2..
 reLabelInt :: (Ord x, Traversable t) => t x -> t Integer
-reLabelInt struct = S.evalState (traverse (S.state . onOne) struct) start where
-    start = (1, M.empty)
+reLabelInt struct = S.evalState (traverse (S.state . onOne) struct) startI where
+    startI = (1, M.empty)
     onOne oldLabel (nextLabel, used) = case M.lookup oldLabel used of
         Nothing -> (nextLabel, (nextLabel + 1, M.insert oldLabel nextLabel used))
         Just newLabel -> (newLabel, (nextLabel, used))
@@ -60,7 +60,7 @@ instance Labeling Integer where
     preserve = const False
 
 -- Either a value or an index that will be relabelled properly
-data SmartIndex x = Index Integer | Value x deriving (Eq, Ord, Show)
+data SmartIndex x = Value x | Index Integer deriving (Eq, Ord, Show)
 
 instance RenderableF SmartIndex where
     renders _ (Index i) = "t_" <> fromString (show i)

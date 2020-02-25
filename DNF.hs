@@ -11,16 +11,18 @@ module DNF (
     removeAtomsAlone,
     removeAtoms,
     singleton,
+    singletonClause,
     insertClause,
+    addClause,
+    addAll,
     toDNF
 ) where
 
+import Control.Monad (foldM)
 import Control.Monad.Writer (Writer)
 import qualified Control.Monad.Writer as W
-import Data.Map.Lazy (Map)
-import qualified Data.Map.Lazy as M
 import Control.Category ((>>>))
-import Data.List (isSubsequenceOf)
+import Data.List (isSubsequenceOf, partition)
 
 import WFF (WFF(..))
 import WFFType
@@ -43,8 +45,9 @@ newtype DNF x = DNF { clauses :: [Clause x] } deriving Show
 
 -- Removes the first clause from a DNF
 pop :: DNF x -> Maybe (DNF x)
+pop (DNF []) = error "Invalid DNF"
 pop (DNF [_]) = Nothing
-pop (DNF (_:clauses)) = Just $ DNF clauses
+pop (DNF (_:cs)) = Just $ DNF cs
 
 {-
     Bring atoms in the sorted list to the front of the clause,
@@ -52,6 +55,7 @@ pop (DNF (_:clauses)) = Just $ DNF clauses
 -}
 bringForward :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     EW x (Clause (SmartIndex x))
+bringForward _ (Clause []) = error "Invalid clause"
 bringForward [] clause = return clause
 bringForward _ clause@(Clause [_]) = return clause -- Cannot remove all elements
 bringForward leftss@(left:lefts) clause@(Clause (right:rights))
@@ -78,6 +82,7 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
 -- Removes atoms in the sorted list from a clause, assuming the formula is alone
 removeAtomsAlone :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     DW x (Clause (SmartIndex x))
+removeAtomsAlone _ (Clause []) = error "Invalid clause"
 removeAtomsAlone [] clause = return clause
 removeAtomsAlone _ clause@(Clause [_]) =
     return clause -- Cannot remove all elements
@@ -106,6 +111,7 @@ removeAtomsAlone removess@(remove:removes) clause@(Clause (atom:atos))
 -- the form clause | other
 removeAtoms :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     DW x (Clause (SmartIndex x))
+removeAtoms _ (Clause []) = error "Invalid clause"
 removeAtoms [] clause = return clause
 removeAtoms _ clause@(Clause [_]) = return clause -- Cannot remove all elements
 removeAtoms removess@(remove:removes) clause@(Clause (atom:atos))
@@ -141,15 +147,19 @@ removeAtoms removess@(remove:removes) clause@(Clause (atom:atos))
 singleton :: Clause x -> DNF x
 singleton = DNF . pure
 
+singletonClause :: (x, Bool) -> Clause x
+singletonClause = Clause . pure
+
 -- Adds a clause to a DNF, with the proof starting from (clause | dnf)
 insertClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
     EW x (DNF (SmartIndex x))
+insertClause _ (DNF []) = error "Invalid DNF"
 insertClause clause dnf@(DNF [right])
     | clause < right = return $ DNF [clause,right]
     | clause == right = do
         W.tell $ Index <$> D.fromIso (T.invert T.idempotenceOr :: a \/ a |~ a)
         return dnf
-    | clause > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
         return $ DNF [right, clause]
 insertClause clause dnf@(DNF rightss@(right:rights))
@@ -160,7 +170,7 @@ insertClause clause dnf@(DNF rightss@(right:rights))
             :: a \/ (a \/ b) |~ a \/ b
             )
         return dnf
-    | clause > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationOr >>>
             T.liftOrLeft T.commutationOr >>>
@@ -169,6 +179,34 @@ insertClause clause dnf@(DNF rightss@(right:rights))
             )
         DNF . (right:) . clauses <$>
             W.censor D.liftOrRight (insertClause clause $ DNF rights)
+
+-- Adds a clause to a DNF starting from DNF
+addClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
+    DW x (DNF (SmartIndex x))
+addClause clause dnf = do
+    W.tell $ Index <$> D.fromTyped (
+        T.addition >>>
+        T.toTyped T.commutationOr
+        :: a |- b \/ a
+        )
+    toDW $ insertClause clause dnf
+
+-- Adds a sorted list of clauses to a DNF
+addAll :: Ord x => [Clause (SmartIndex x)] -> DNF (SmartIndex x) ->
+    DW x (DNF (SmartIndex x))
+addAll cs dnf = case partition (<= largest) cs of
+    ([], []) -> return dnf
+    ([], _) -> do
+        _ <- addClause (Clause [(Index 1, True)]) dnf -- Larger than any clause with Values
+        return $ DNF $ clauses dnf ++ cs
+    (_, []) -> do
+        foldM (flip addClause) dnf $ cs
+    (smalls, larges) -> do
+        dnf1 <- addClause (Clause [(Index 1, True)]) dnf
+        dnf2 <- foldM (flip addClause) dnf1 $ smalls
+        return $ DNF $ init (clauses dnf2) ++ larges
+    where
+        largest = last $ clauses dnf
 
 -- Remove all implications and equivalences
 removeImpEq :: Ord x => WFF (SmartIndex x) -> EW x (WFF (SmartIndex x))
@@ -267,12 +305,14 @@ sortClause _ = error "Formula is not in DNF after conversion"
 -- Merge two LASC into one LASC
 mergeClauses :: Ord x => [(SmartIndex x, Bool)] -> [(SmartIndex x, Bool)] ->
     EW x [(SmartIndex x, Bool)]
+mergeClauses [] _ = error "Invalid clause"
+mergeClauses _ [] = error "Invalid clause"
 mergeClauses [left] [right]
     | left < right = return [left,right]
     | left == right = do
         W.tell $ Index <$> D.fromIso (T.invert T.idempotenceAnd :: a /\ a |~ a)
         return [left]
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationAnd :: a /\ b |~ b /\ a)
         return [right, left]
 mergeClauses [left] rightss@(right:rights)
@@ -283,7 +323,7 @@ mergeClauses [left] rightss@(right:rights)
             :: a /\ (a /\ b) |~ a /\ b
             )
         return rightss
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationAnd >>>
             T.liftAndLeft T.commutationAnd >>>
@@ -304,7 +344,7 @@ mergeClauses leftss@(left:lefts) [right]
             :: (a /\ b) /\ a |~ a /\ b
             )
         return leftss
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationAnd :: a /\ b |~ b /\ a)
         return $ right:leftss
 mergeClauses leftss@(left:lefts) rightss@(right:rights)
@@ -322,7 +362,7 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
             :: (a /\ b) /\ (a /\ c) |~ a /\ (c /\ b)
             )
         (left:) <$> (W.censor D.liftAndRight $ mergeClauses rights lefts)
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationAnd :: a /\ b |~ b /\ a)
         mergeClauses rightss leftss
 
@@ -339,12 +379,14 @@ sortClauses _ = error "Unsorted clause after sorting"
 -- Merges two LASD into one LASD
 mergeDNF :: Ord x => [Clause (SmartIndex x)] -> [Clause (SmartIndex x)] ->
     EW x [Clause (SmartIndex x)]
+mergeDNF [] _ = error "Invalid DNF"
+mergeDNF _ [] = error "Invalid DNF"
 mergeDNF [left] [right]
     | left < right = return [left,right]
     | left == right = do
         W.tell $ Index <$> D.fromIso (T.invert T.idempotenceOr :: a \/ a |~ a)
         return [left]
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
         return [right, left]
 mergeDNF [left] rightss@(right:rights)
@@ -355,7 +397,7 @@ mergeDNF [left] rightss@(right:rights)
             :: a \/ (a \/ b) |~ a \/ b
             )
         return rightss
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationOr >>>
             T.liftOrLeft T.commutationOr >>>
@@ -376,7 +418,7 @@ mergeDNF leftss@(left:lefts) [right]
             :: (a \/ b) \/ a |~ a \/ b
             )
         return leftss
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
         return $ right:leftss
 mergeDNF leftss@(left:lefts) rightss@(right:rights)
@@ -394,7 +436,7 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
             :: (a \/ b) \/ (a \/ c) |~ a \/ (c \/ b)
             )
         (left:) <$> (W.censor D.liftOrRight $ mergeDNF rights lefts)
-    | left > right = do
+    | otherwise = do
         W.tell $ Index <$> D.fromIso (T.commutationOr :: a \/ b |~ b \/ a)
         mergeDNF rightss leftss
 

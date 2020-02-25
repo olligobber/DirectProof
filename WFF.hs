@@ -18,6 +18,7 @@ import Data.Traversable (foldMapDefault)
 import Data.Text (Text)
 import Control.Monad.State (State, StateT)
 import qualified Control.Monad.State as S
+import Data.Maybe (fromMaybe)
 
 import UnionFind (UnionFind)
 import qualified UnionFind as U
@@ -160,12 +161,12 @@ matchS f (left1 :>: right1) (left2 :>: right2) =
     matchS f left1 left2 >> matchS f right1 right2
 matchS f (left1 :=: right1) (left2 :=: right2) =
     matchS f left1 left2 >> matchS f right1 right2
-matchS f x y = S.StateT $ const $ Left $ StructureError x y
+matchS _ x y = S.StateT $ const $ Left $ StructureError x y
 
 -- The first part of matching two WFFs, which collects all matched propositions
 matchPart :: Ord x => (x -> Bool) -> WFF x -> WFF x ->
     Either (MatchError x) (Map x (WFF x))
-matchPart f x y = fmap (\(k, v) -> maybe (Prop k) id v) <$> S.evalStateT
+matchPart f x y = fmap (\(k, v) -> fromMaybe (Prop k) v) <$> S.evalStateT
     (matchS f x y >> toUWFF U.flatten)
     (U.new
         (M.!)

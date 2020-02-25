@@ -9,8 +9,6 @@ module DirectedProof (
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
 ) where
 
-import Data.Text (Text)
-
 import TypedProof (type (|-)(), type (|~)())
 import qualified TypedProof as T
 import Proof (Proof)

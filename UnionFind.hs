@@ -41,26 +41,22 @@ infix 9 //
 uf ! index = getter uf (members uf) index
 
 (//) :: UnionFind m i v -> (i, UnionElement i v) -> UnionFind m i v
-uf // (index, value) = UnionFind
+uf // (index, val) = UnionFind
     (getter uf)
     (setter uf)
-    (setter uf (members uf) index value)
+    (setter uf (members uf) index val)
     (identity uf)
 
 getRank :: UnionElement i v -> Integer
 getRank (Root x _) = x
 getRank _ = error "Element is not a root"
 
-getValue :: UnionElement i v -> v
-getValue (Root _ x) = x
-getValue _ = error "Element is not a root"
-
 {-
     Make a unionfind where everything is seperate given the map-like type
     prefilled with indices mapping to themselves and a value
 -}
 new :: Functor m => Getter m i -> Setter m i -> m (i, v) -> UnionFind m i v
-new get set structure = UnionFind get set
+new gets sets structure = UnionFind gets sets
     (Root 0 . snd <$> structure)
     (fst <$> structure)
 
@@ -83,26 +79,26 @@ setrank root rank = do
     rootVal <- extract root
     case rootVal of
         ChildOf _ -> error "Tried to make non-root of UnionFind into a root"
-        Root _ value -> S.modify (// (root, Root rank value))
+        Root _ val -> S.modify (// (root, Root rank val))
 
 -- Set a unionfind element as a root with a given value
 setvalue :: i -> v -> UnionFindS m i v ()
-setvalue root value = do
+setvalue root val = do
     rootVal <- extract root
     case rootVal of
         ChildOf _ -> error "Tried to set value of non-root of UnionFind"
-        Root rank _ -> S.modify (// (root, Root rank value))
+        Root rank _ -> S.modify (// (root, Root rank val))
 
 -- Find the representative and value of an element's set
 find :: Eq i => i -> UnionFindS m i v (i,v)
 find mem = do
     memele <- extract mem
     case memele of
-        Root _ value -> return (mem, value)
+        Root _ val -> return (mem, val)
         ChildOf par -> do
-            (root,value) <- find par
+            (root,val) <- find par
             setparent mem root
-            return (root,value)
+            return (root,val)
 
 -- Find the representative of an element's set
 rep :: Eq i => i -> UnionFindS m i v i
@@ -114,9 +110,9 @@ value mem = snd <$> find mem
 
 -- Set the value of an element's set
 set :: Eq i => i -> v -> UnionFindS m i v ()
-set index value = do
+set index val = do
     root <- rep index
-    setvalue root value
+    setvalue root val
 
 -- Join two sets, returning the two values if a merge occurred
 union :: Eq i => i -> i -> UnionFindS m i v (Maybe (v,v))

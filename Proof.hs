@@ -101,7 +101,7 @@ instance Foldable Proof where
 
 instance Traversable Proof where
     sequenceA proof = Proof
-        <$> (sequenceA $ fmap sequenceA $ formulas proof)
+        <$> traverse sequenceA (formulas proof)
         <*> pure (reasons proof)
         <*> pure (references proof)
 
@@ -196,7 +196,7 @@ complexRule in1 in2 out reason pf1 pf2
                     , "    " ++ show q ++ " := " ++ show c
                     ]
         [formulas1', formulas2'] =
-            fmap getCompose $ getCompose $ reLabel $ Compose $ fmap Compose
+            getCompose $ getCompose $ reLabel $ Compose $ Compose
                 [ W.applyMap m1 . fmap Left <$> formulas pf1
                 , W.applyMap m1 . fmap Right <$> formulas pf2
                 ]
@@ -233,7 +233,7 @@ complexRule in1 in2 out reason pf1 pf2
                     , "    " ++ show q ++ " := " ++ show c
                     ]
         [formulas1, formulas2, [final]] =
-            fmap getCompose $ getCompose $ reLabel $ Compose $ fmap Compose
+            getCompose $ getCompose $ reLabel $ Compose $ Compose
                 [ W.applyMap m2 . fmap Left <$> formulas1'
                 , W.applyMap m2 . fmap Left <$> formulas2'
                 , [W.applyMap m2 $ fmap Right out]

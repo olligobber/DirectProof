@@ -3,7 +3,7 @@ module Convert (convert) where
 import qualified Control.Monad.Writer as W
 
 import WFF (WFF)
-import DNF (DNF, toDNF)
+import DNF (toDNF)
 import DNFConvert
 import DirectedProof (DirectedProof)
 import qualified DirectedProof as D

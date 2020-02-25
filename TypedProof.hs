@@ -19,7 +19,6 @@ module TypedProof (
 ) where
 
 import Prelude hiding (id, (.)) -- Control.Category redefines these
-import Data.Text (Text)
 import Control.Category
 import Data.String (fromString)
 

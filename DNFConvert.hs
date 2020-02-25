@@ -10,7 +10,6 @@ import Data.List (groupBy, isSubsequenceOf, maximumBy, (\\))
 import Data.Function (on)
 import qualified Control.Monad.Writer as W
 import Control.Category ((>>>))
-import Control.Monad (foldM)
 
 import DNF
 import WFFType
@@ -133,18 +132,58 @@ makeProgress :: Ord x => DNF (SmartIndex x) -> DNFConversion x ->
     DW x (DNFConversion x)
 makeProgress _ dnfc@(DNFConversion Nothing _ _) = return dnfc
 makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
-    case bestSubClause inP goal of
-        Nothing -> error "Unable to convert DNF"
-        Just c -> do
+    case (getContradiction inP, bestSubClause inP goal) of
+        (Nothing, Nothing) -> error "Unable to convert DNF"
+        (Just p, _) -> do
+            ninP <- removeAtoms (takeWhile ((/= p) . fst) $ atoms inP) inP
+            _ <- addClause (singletonClause (Index 1, True)) $ singleton ninP
+            if length (atoms ninP) == 2 then
+                W.tell $ Index <$> (D.toDirected . D.fromIso) (
+                    T.commutationOr >>>
+                    T.distribution2
+                    :: (Not a /\ a) \/ b |~ (b \/ Not a) /\ (b \/ a)
+                    )
+            else
+                W.tell $ Index <$> D.fromTyped (
+                    T.toTyped (
+                        T.commutationOr >>>
+                        T.distribution2 >>>
+                        T.liftAndRight T.distribution2 >>>
+                        T.associationAnd
+                        ) >>>
+                    T.simplification
+                    :: (Not a /\ (a /\ b)) \/ c |- (c \/ Not a) /\ (c \/ a)
+                    )
+            W.tell $ Index <$> D.fromTyped (
+                T.toTyped (
+                    T.liftAndLeft (
+                        T.liftOrLeft T.doubleNegation >>>
+                        T.invert T.defImplication
+                        ) >>>
+                    T.liftAndRight (
+                        T.commutationOr >>>
+                        T.liftOrLeft T.doubleNegation >>>
+                        T.invert T.defImplication
+                        )
+                    ) >>>
+                T.hypotheticalS
+                    (T.simplification)
+                    (T.toTyped T.commutationAnd >>> T.simplification)
+                >>>
+                T.toTyped (
+                    T.defImplication >>>
+                    T.liftOrLeft (T.invert T.doubleNegation) >>>
+                    T.invert T.idempotenceOr
+                    )
+                :: (b \/ Not a) /\ (b \/ a) |- b
+                )
+            return $ DNFConversion Nothing (Just goal) Nothing
+        (_, Just c) -> do
             ninP <- removeAtomsAlone (atoms inP \\ atoms c) inP
             return $ DNFConversion (Just ninP) Nothing Nothing
 makeProgress goal (DNFConversion (Just inP) conv unconv) =
     case (getContradiction inP, bestSubClause inP goal) of
         (Nothing, Nothing) -> error "Unable to convert DNF"
-        (_, Just c) -> do
-            -- This case is first so we don't delete everything useful
-            ninP <- removeAtoms (atoms inP \\ atoms c) inP
-            return $ DNFConversion (Just ninP) conv unconv
         (Just p, _) -> do
             ninP <- removeAtoms (takeWhile ((/= p) . fst) $ atoms inP) inP
             if length (atoms ninP) == 2 then
@@ -188,6 +227,9 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                 :: (b \/ Not a) /\ (b \/ a) |- b
                 )
             return $ DNFConversion Nothing conv unconv
+        (_, Just c) -> do
+            ninP <- removeAtoms (atoms inP \\ atoms c) inP
+            return $ DNFConversion (Just ninP) conv unconv
 
 finishConversion :: Ord x => DNFConversion x -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
@@ -197,21 +239,10 @@ finishConversion dnfc goal = do
         Left dnf -> return dnf
         Right nextdnfc -> finishConversion nextdnfc goal
 
--- Adds the given clause to a dnf
-addClause :: Ord x => DNF (SmartIndex x) -> Clause (SmartIndex x) ->
-    DW x (DNF (SmartIndex x))
-addClause dnf clause = do
-    W.tell $ Index <$> D.fromTyped (
-        T.addition >>>
-        T.toTyped T.commutationOr
-        :: a |- b \/ a
-        )
-    toDW $ insertClause clause dnf
-
 -- Adds clauses to the first dnf until it matches the second
 addUntil :: Ord x => DNF (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
-addUntil start goal = foldM addClause start $ clauses goal \\ clauses start
+addUntil start goal = addAll (clauses goal \\ clauses start) start
 
 convertDNF :: Ord x => DNF (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
