@@ -10,6 +10,7 @@ import Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as M
 import qualified Data.Set as S
 import Data.Function (on)
+import Data.Functor.Compose (Compose(Compose))
 
 import WFF(WFF(..))
 
@@ -50,13 +51,15 @@ evaluate (left :&: right) = (meet `on` evaluate) left right
 evaluate (left :>: right) = evaluate $ Not left :|: right
 evaluate (left :=: right) = evaluate $ (left :>: right) :&: (right :>: left)
 
-counterexample :: (Ord x, Logical y) => [y] -> WFF x -> WFF x -> Maybe (Map x y)
-counterexample vals first second =
-    case filter (not . sateval second) $ filter (sateval first) tables of
-        [] -> Nothing
-        (x:_) -> Just x
+counterexample :: (Ord x, Logical y) => [y] -> [WFF x] -> WFF x ->
+    Maybe (Map x y)
+counterexample vals firsts second =
+    case filter (not . sateval second) $
+        foldl (flip $ filter . sateval) tables firsts of
+            [] -> Nothing
+            (x:_) -> Just x
     where
         props = S.toList $
-            foldMap S.singleton first <> foldMap S.singleton second
+            foldMap S.singleton (Compose firsts) <> foldMap S.singleton second
         tables = M.fromList <$> mapM (\x -> [(,) x] <*> vals) props
         sateval wff table = evaluate ((table M.!) <$> wff) == top

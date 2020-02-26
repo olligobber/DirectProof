@@ -1,9 +1,10 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module DirectedProof (
     -- Types and conversions
     DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
-    identity,
+    identity, assumptions,
     -- Lifts
     liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
@@ -106,3 +107,16 @@ liftEquivLeft (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
 liftNot :: Labeling x => EquivProof x -> EquivProof x
 liftNot (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
     P.mapWFF Not p
+
+-- Convert assumptions to a single formula
+assumptions :: [WFF x] -> (DirectedProof x, WFF x)
+assumptions [] = error "Cannot have a proof with no assumptions"
+assumptions [a] = (DirectedProof $ P.identity a, a)
+assumptions (a:as) = (
+    DirectedProof $ P.Proof nformulas nreasons nreferences,
+    a :&: nas ) where
+        (DirectedProof (P.Proof oformulas oreasons oreferences), nas) =
+            assumptions as
+        nformulas = oformulas ++ [a, a :&: nas]
+        nreasons = oreasons ++ ["Assumption", "Conjunction"]
+        nreferences = oreferences ++ [[], [(-2),(-1)]]

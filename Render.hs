@@ -20,6 +20,9 @@ import Data.Functor.Compose (Compose(..))
 class Renderable x where
     render :: x -> Text
 
+instance Renderable Text where
+    render = id
+
 instance Renderable String where
     render = fromString
 
