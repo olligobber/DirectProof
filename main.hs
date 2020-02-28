@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Data.Functor.Compose (Compose(Compose))
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import Data.String (fromString)
@@ -10,7 +9,7 @@ import System.IO (hFlush, stdout)
 import WFF (WFF(..))
 import Convert
 import WFFParser
-import Render (putRenders, putRenders2)
+import Render (putRender)
 import ReLabel (SmartIndex(Value))
 import Logical (counterexample)
 
@@ -42,16 +41,16 @@ solve [] = error "No conclusion"
 solve [_] = error "No assumptions"
 solve (goal:starts) = case (counterexample [False,True] starts goal,
     counterexample [Just False, Nothing, Just True] starts goal) of
-        (Nothing, Nothing) -> putRenders $ Compose $
+        (Nothing, Nothing) -> putRender $
             convert (fmap Value <$> starts) (Value <$> goal)
         (Nothing, Just t) -> do
             putStrLn "Cannot be proven directly, due to the following"
             putStrLn "3-valued assignment being a counter-example:"
-            putRenders2 t
+            putRender t
         (Just t, Just _) -> do
             putStrLn "Cannot be proven, due to the following boolean"
             putStrLn "assignment being a counter-example:"
-            putRenders2 t
+            putRender t
         (Just _, Nothing) -> putStrLn "What the fuck"
 
 main :: IO ()

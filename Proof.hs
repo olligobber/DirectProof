@@ -21,7 +21,7 @@ import Data.Functor.Compose (Compose(..))
 import WFF (WFF(..))
 import qualified WFF as W
 import ReLabel (Labeling, reLabel, reLabelInt, single, preserve)
-import Render (RenderableF(..))
+import Render (Renderable(..))
 
 -- Very basic proof object
 data Proof x = Proof {
@@ -111,8 +111,8 @@ instance (Ord x, Labeling x) => Semigroup (Proof x) where
 instance (Ord x, Labeling x) => Monoid (Proof x) where
     mempty = identity $ Prop single
 
-instance RenderableF Proof where
-    renders rend pf = T.unlines $
+instance Renderable x => Renderable (Proof x) where
+    render pf = T.unlines $
         zipWith3 formatCol rightNumbers midFormulas leftReasons
         where
             formatCol n f r = T.intercalate " | " [n,f,r]
@@ -122,7 +122,7 @@ instance RenderableF Proof where
             lengthNumbers = maximum $ T.length <$> numbers
             rightNumbers = T.justifyRight lengthNumbers ' ' <$> numbers
 
-            rendFormulas = renders rend <$> formulas pf
+            rendFormulas = render <$> formulas pf
             lengthFormulas = maximum $ T.length <$> rendFormulas
             midFormulas = T.center lengthFormulas ' ' <$> rendFormulas
 

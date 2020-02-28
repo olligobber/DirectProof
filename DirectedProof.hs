@@ -16,7 +16,7 @@ import Proof (Proof)
 import qualified Proof as P
 import ReLabel (Labeling)
 import WFF (WFF(..))
-import Render (RenderableF(..))
+import Render (Renderable(..))
 
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
     deriving (Show, Eq)
@@ -36,8 +36,8 @@ instance (Ord x, Labeling x) => Semigroup (DirectedProof x) where
 instance (Ord x, Labeling x) => Monoid (DirectedProof x) where
     mempty = DirectedProof mempty
 
-instance RenderableF DirectedProof where
-    renders rend = renders rend . toPlain
+instance Renderable x => Renderable (DirectedProof x) where
+    render = render . toPlain
 
 fromTyped :: a |- b -> DirectedProof Integer
 fromTyped = DirectedProof . T.toPlain
@@ -60,8 +60,8 @@ instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
     mempty = EquivProof mempty
 
-instance RenderableF EquivProof where
-    renders rend = renders rend . toDirected
+instance Renderable x => Renderable (EquivProof x) where
+    render = render . toDirected
 
 identity :: WFF x -> EquivProof x
 identity = EquivProof . DirectedProof . P.identity

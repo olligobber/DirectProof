@@ -20,13 +20,12 @@ module TypedProof (
 
 import Prelude hiding (id, (.)) -- Control.Category redefines these
 import Control.Category
-import Data.String (fromString)
 
 import Proof (Proof)
 import qualified Proof as P
 import WFF (WFF(..))
 import WFFType
-import Render (Renderable(..), renders)
+import Render (Renderable(..))
 
 -- Proof symbols
 infix 2 |-
@@ -40,7 +39,7 @@ instance Category (|-) where
     (TypedProof p2) . (TypedProof p1) = TypedProof $ p1 <> p2
 
 instance Renderable (a |- b) where
-    render (TypedProof pf) = renders (("p_" <>) . fromString . show) pf
+    render (TypedProof pf) = render $ ("p_" <>) . show <$> pf
 
 -- Two directional proof
 newtype (|~) a b = IsoProof { toTyped :: a |- b }

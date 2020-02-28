@@ -22,7 +22,7 @@ import Data.Maybe (fromMaybe)
 
 import UnionFind (UnionFind)
 import qualified UnionFind as U
-import Render (RenderableF(..))
+import Render (Renderable(..))
 
 -- Logical connectives
 infix 5 :|:
@@ -112,8 +112,8 @@ rendersPrec prec rend (wff1 :>: wff2) = showParenT (prec>1) $
 rendersPrec prec rend (wff1 :=: wff2) = showParenT (prec>1) $
     rendersPrec 2 rend wff1 . showText "↔" . rendersPrec 2 rend wff2
 
-instance RenderableF WFF where
-    renders rend wff = rendersPrec 2 rend wff ""
+instance Renderable x => Renderable (WFF x) where
+    render wff = rendersPrec 2 render wff ""
 
 -- Possible errors that can occur when trying to match WFFs
 data MatchError x =
