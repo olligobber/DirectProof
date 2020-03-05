@@ -9,10 +9,9 @@ module TypedProof (
     -- lifts
     liftLeft, liftRight, liftNot,
     -- equivalence rules
-    deMorgans1, deMorgans2, commutationOr, commutationAnd, associationOr,
-    associationAnd, distribution1, distribution2, doubleNegation,
+    deMorgans, commutation, association, distribution, doubleNegation,
     transposition, defImplication, matEquivalence, defEquivalence, exportation,
-    idempotenceOr, idempotenceAnd,
+    idempotence,
     -- deduction rules
     modusPonens, modusTollens, hypotheticalS, disjunctiveS, constructiveD,
     destructiveD, simplification, conjunction, addition
@@ -56,11 +55,11 @@ invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
 -- Lift proofs as subformulas
 
-liftLeft :: forall a b c op. BinOp op => a |~ b -> op a c |~ op b c
+liftLeft :: forall a b c op. BinOp op => a |~ b -> a `op` c |~ b `op` c
 liftLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftLeft
     (extract (getop :: op () ())) p
 
-liftRight :: forall a b c op. BinOp op => a |~ b -> op c a |~ op c b
+liftRight :: forall a b c op. BinOp op => a |~ b -> c `op` a |~ c `op` b
 liftRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftRight
     (extract (getop :: op () ())) p
 
@@ -69,53 +68,43 @@ liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p
 
 -- Equivalence rules
 
-deMorgans1 :: Not (a /\ b) |~ Not a \/ Not b
-deMorgans1 = IsoProof $ TypedProof $ P.simpleRule
-    (Not $ Prop 1 :&: Prop 2)
-    (Not (Prop 1) :|: Not (Prop 2))
+deMorgans :: forall a b op1 op2. AlgOp op1 op2 =>
+    Not (a `op1` b) |~ Not a `op2` Not b
+deMorgans = IsoProof $ TypedProof $ P.simpleRule
+    (Not (Prop 1 *& Prop 2))
+    (Not (Prop 1) *+ Not (Prop 2))
     "De Morgan's"
+    where
+        (*&) = extract (getop :: op1 () ())
+        (*+) = extract (getop :: op2 () ())
 
-deMorgans2 :: Not (a \/ b) |~ Not a /\ Not b
-deMorgans2 = IsoProof $ TypedProof $ P.simpleRule
-    (Not $ Prop 1 :|: Prop 2)
-    (Not (Prop 1) :&: Not (Prop 2))
-    "De Morgan's"
-
-commutationOr :: a \/ b |~ b \/ a
-commutationOr = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :|: Prop 2)
-    (Prop 2 :|: Prop 1)
+commutation :: forall a b op op2. AlgOp op op2 =>
+    a `op` b |~ b `op` a
+commutation = IsoProof $ TypedProof $ P.simpleRule
+    (Prop 1 *& Prop 2)
+    (Prop 2 *& Prop 1)
     "Commutation"
+    where
+        (*&) = extract (getop :: op () ())
 
-commutationAnd :: a /\ b |~ b /\ a
-commutationAnd = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :&: Prop 2)
-    (Prop 2 :&: Prop 1)
-    "Commutation"
-
-associationOr :: a \/ (b \/ c) |~ (a \/ b) \/ c
-associationOr = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :|: (Prop 2 :|: Prop 3))
-    ((Prop 1 :|: Prop 2) :|: Prop 3)
+association :: forall a b c op op2. AlgOp op op2 =>
+    a `op` (b `op` c) |~ (a `op` b) `op` c
+association = IsoProof $ TypedProof $ P.simpleRule
+    (Prop 1 *& (Prop 2 *& Prop 3))
+    ((Prop 1 *& Prop 2) *& Prop 3)
     "Association"
+    where
+        (*&) = extract (getop :: op () ())
 
-associationAnd :: a /\ (b /\ c) |~ (a /\ b) /\ c
-associationAnd = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :&: (Prop 2 :&: Prop 3))
-    ((Prop 1 :&: Prop 2) :&: Prop 3)
-    "Association"
-
-distribution1 :: a /\ (b \/ c) |~ (a /\ b) \/ (a /\ c)
-distribution1 = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :&: (Prop 2 :|: Prop 3))
-    ((Prop 1 :&: Prop 2) :|: (Prop 1 :&: Prop 3))
+distribution :: forall a b c op1 op2. AlgOp op1 op2 =>
+    a `op1` (b `op2` c) |~ (a `op1` b) `op2` (a `op1` c)
+distribution = IsoProof $ TypedProof $ P.simpleRule
+    (Prop 1 *& (Prop 2 *+ Prop 3))
+    ((Prop 1 *& Prop 2) *+ (Prop 1 *& Prop 3))
     "Distribution"
-
-distribution2 :: a \/ (b /\ c) |~ (a \/ b) /\ (a \/ c)
-distribution2 = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1 :|: (Prop 2 :&: Prop 3))
-    ((Prop 1 :|: Prop 2) :&: (Prop 1 :|: Prop 3))
-    "Distribution"
+    where
+        (*&) = extract (getop :: op1 () ())
+        (*+) = extract (getop :: op2 () ())
 
 doubleNegation :: a |~ Not (Not a)
 doubleNegation = IsoProof $ TypedProof $ P.simpleRule
@@ -153,16 +142,10 @@ exportation = IsoProof $ TypedProof $ P.simpleRule
     (Prop 1 :>: (Prop 2 :>: Prop 3))
     "Exportation"
 
-idempotenceOr :: a |~ a \/ a
-idempotenceOr = IsoProof $ TypedProof $ P.simpleRule
+idempotence :: forall a op op2. AlgOp op op2 => a |~ a `op` a
+idempotence = IsoProof $ TypedProof $ P.simpleRule
     (Prop 1)
-    (Prop 1 :|: Prop 1)
-    "Idempotence"
-
-idempotenceAnd :: a |~ a /\ a
-idempotenceAnd = IsoProof $ TypedProof $ P.simpleRule
-    (Prop 1)
-    (Prop 1 :&: Prop 1)
+    (extract (getop :: op () ()) (Prop 1) (Prop 1))
     "Idempotence"
 
 -- Deduction rules
