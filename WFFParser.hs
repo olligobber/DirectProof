@@ -23,12 +23,12 @@ notP = Not <$ (string "-" <|> string "~" <|> string "!" <|> string "¬") <?>
 
 orP :: Parsec Text () (WFF x -> WFF x -> WFF x)
 orP = (:|:) <$
-    (string "\\/" <|> (string "|" <* (string "" <* string "|")) <|>
+    (string "\\/" <|> (string "|" <* (string "" <|> string "|")) <|>
         string "+" <|> string ";" <|> string "∨") <?> "disjunction operator"
 
 andP :: Parsec Text () (WFF x -> WFF x -> WFF x)
 andP = (:&:) <$
-    (string "/\\" <|> (string "&" <* (string "" <* string "&")) <|>
+    (string "/\\" <|> (string "&" <* (string "" <|> string "&")) <|>
         string "*" <|> string "^" <|> string "," <|> string "∧") <?>
     "conjunction operator"
 

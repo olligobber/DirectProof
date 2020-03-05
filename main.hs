@@ -51,7 +51,7 @@ solve (goal:starts) = case (counterexample [False,True] starts goal,
             putStrLn "Cannot be proven, due to the following boolean"
             putStrLn "assignment being a counter-example:"
             putRender t
-        (Just _, Nothing) -> putStrLn "What the fuck"
+        (Just _, Nothing) -> error "Counter-example function failed"
 
 main :: IO ()
 main = do
@@ -66,6 +66,6 @@ main = do
             (\(i,x) -> parseWFF
                 (if i == 0 then "Conclusion" else "Assumption " ++ show i) $
                 fromString x) $
-            zip [0..] args of
+            zip ([0..] :: [Int]) args of
                 Left e -> print e >> promptInput >>= solve
                 Right as -> solve as

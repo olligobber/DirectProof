@@ -248,4 +248,4 @@ convertDNF :: Ord x => DNF (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 convertDNF start goal =
     finishConversion (startConversion start) goal >>=
-    addUntil goal
+    flip addUntil goal

@@ -10,11 +10,15 @@ module DirectedProof (
     liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
 ) where
 
+import Control.Monad.Writer (Writer)
+import qualified Control.Monad.Writer as W
+import Control.Monad (foldM)
+
 import TypedProof (type (|-)(), type (|~)())
 import qualified TypedProof as T
 import Proof (Proof)
 import qualified Proof as P
-import ReLabel (Labeling)
+import ReLabel (Labeling, SmartIndex(..))
 import WFF (WFF(..))
 import Render (Renderable(..))
 
@@ -109,14 +113,20 @@ liftNot (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
     P.mapWFF Not p
 
 -- Convert assumptions to a single formula
-assumptions :: [WFF x] -> (DirectedProof x, WFF x)
+assumptions :: Ord x => [WFF (SmartIndex x)] ->
+    Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
 assumptions [] = error "Cannot have a proof with no assumptions"
-assumptions [a] = (DirectedProof $ P.identity a, a)
-assumptions (a:as) = (
-    DirectedProof $ P.Proof nformulas nreasons nreferences,
-    a :&: nas ) where
-        (DirectedProof (P.Proof oformulas oreasons oreferences), nas) =
-            assumptions as
-        nformulas = oformulas ++ [a, a :&: nas]
-        nreasons = oreasons ++ ["Assumption", "Conjunction"]
-        nreferences = oreferences ++ [[], [(-2),(-1)]]
+assumptions [a] = a <$ W.tell (DirectedProof $ P.identity a)
+assumptions (a:as) = foldM nproof a as where
+    nproof :: Ord x => WFF (SmartIndex x) -> WFF (SmartIndex x) ->
+        Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
+    nproof conj newa = do
+        W.tell $ DirectedProof $ P.Proof
+            [conj, newa]
+            ["Assumption"]
+            [[]]
+        W.tell $ DirectedProof $ P.Proof
+            [newa, conj :&: newa]
+            ["Conjunction"]
+            [[(-2),(-1)]]
+        return $ conj :&: newa

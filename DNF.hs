@@ -180,6 +180,16 @@ insertClause clause dnf@(DNF rightss@(right:rights))
         DNF . (right:) . clauses <$>
             W.censor D.liftOrRight (insertClause clause $ DNF rights)
 
+-- Adds a clause to the end of a DNF starting from DNF \/ newClause
+addEnd :: Ord x => DNF (SmartIndex x) -> EquivProof (SmartIndex x)
+addEnd (DNF []) = error "Invalid DNF"
+addEnd (DNF [_]) = mempty
+addEnd (DNF (_:cs)) = mconcat
+    [ Index <$> D.fromIso
+        (T.invert T.associationOr :: (a \/ b) \/ c |~ a \/ (b \/ c))
+    , D.liftOrLeft (addEnd $ DNF cs)
+    ]
+
 -- Adds a clause to a DNF starting from DNF
 addClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
@@ -197,14 +207,15 @@ addAll :: Ord x => [Clause (SmartIndex x)] -> DNF (SmartIndex x) ->
 addAll cs dnf = case partition (<= largest) cs of
     ([], []) -> return dnf
     ([], _) -> do
-        _ <- addClause (Clause [(Index 1, True)]) dnf -- Larger than any clause with Values
+        W.tell $ Index <$> D.fromTyped (T.addition :: a |- a \/ b)
+        W.tell $ D.toDirected $ addEnd dnf
         return $ DNF $ clauses dnf ++ cs
     (_, []) -> do
         foldM (flip addClause) dnf $ cs
     (smalls, larges) -> do
-        dnf1 <- addClause (Clause [(Index 1, True)]) dnf
-        dnf2 <- foldM (flip addClause) dnf1 $ smalls
-        return $ DNF $ init (clauses dnf2) ++ larges
+        W.tell $ Index <$> D.fromTyped (T.addition :: a |- a \/ b)
+        W.tell $ D.toDirected $ addEnd dnf
+        foldM (flip addClause) (DNF $ clauses dnf ++ larges) $ smalls
     where
         largest = last $ clauses dnf
 

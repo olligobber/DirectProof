@@ -16,6 +16,9 @@ import Data.String (fromString)
 class Renderable x where
     render :: x -> Text
 
+instance Renderable Integer where
+    render = fromString . show
+
 instance Renderable Text where
     render = id
 
