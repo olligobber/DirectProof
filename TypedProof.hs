@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module TypedProof (
     -- types and conversions
     type (|-)(), type (|~)(), invert, toTyped, toPlain, render,
     -- lifts
-    liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
-    liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot,
+    liftLeft, liftRight, liftNot,
     -- equivalence rules
     deMorgans1, deMorgans2, commutationOr, commutationAnd, associationOr,
     associationAnd, distribution1, distribution2, doubleNegation,
@@ -56,37 +56,13 @@ invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
 -- Lift proofs as subformulas
 
-liftAndLeft :: a |~ b -> a /\ c |~ b /\ c
-liftAndLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftLeft (:&:) p
+liftLeft :: forall a b c op. BinOp op => a |~ b -> op a c |~ op b c
+liftLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftLeft
+    (extract (getop :: op () ())) p
 
-liftAndRight :: a |~ b -> c /\ a |~ c /\ b
-liftAndRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:&:) p
-
-liftOrLeft :: a |~ b -> a \/ c |~ b \/ c
-liftOrLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftLeft (:|:) p
-
-liftOrRight :: a |~ b -> c \/ a |~ c \/ b
-liftOrRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:|:) p
-
-liftImpliesLeft :: a |~ b -> a --> c |~ b --> c
-liftImpliesLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftLeft (:>:) p
-
-liftImpliesRight :: a |~ b -> c --> a |~ c --> b
-liftImpliesRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:>:) p
-
-liftEquivLeft :: a |~ b -> a <-> c |~ b <-> c
-liftEquivLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftLeft (:=:) p
-
-liftEquivRight :: a |~ b -> c <-> a |~ c <-> b
-liftEquivRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $
-    P.liftRight (:=:) p
+liftRight :: forall a b c op. BinOp op => a |~ b -> op c a |~ op c b
+liftRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftRight
+    (extract (getop :: op () ())) p
 
 liftNot :: a |~ b -> Not a |~ Not b
 liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p

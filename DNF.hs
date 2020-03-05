@@ -73,7 +73,7 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
             Clause rights
         W.tell $ Index <$> D.fromIso (
             T.associationAnd >>>
-            T.liftAndLeft T.commutationAnd >>>
+            T.liftLeft T.commutationAnd >>>
             T.invert T.associationAnd
             :: a /\ (b /\ c) |~ b /\ (a /\ c)
             )
@@ -166,14 +166,14 @@ insertClause clause dnf@(DNF rightss@(right:rights))
     | clause < right = return $ DNF $ clause:rightss
     | clause == right = do
         W.tell $ Index <$> D.fromIso (
-            T.associationOr >>> T.liftOrLeft (T.invert T.idempotenceOr)
+            T.associationOr >>> T.liftLeft (T.invert T.idempotenceOr)
             :: a \/ (a \/ b) |~ a \/ b
             )
         return dnf
     | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationOr >>>
-            T.liftOrLeft T.commutationOr >>>
+            T.liftLeft T.commutationOr >>>
             T.invert T.associationOr
             :: a \/ (b \/ c) |~ b \/ (a \/ c)
             )
@@ -330,14 +330,14 @@ mergeClauses [left] rightss@(right:rights)
     | left < right = return $ left:rightss
     | left == right = do
         W.tell $ Index <$> D.fromIso (
-            T.associationAnd >>> T.liftAndLeft (T.invert T.idempotenceAnd)
+            T.associationAnd >>> T.liftLeft (T.invert T.idempotenceAnd)
             :: a /\ (a /\ b) |~ a /\ b
             )
         return rightss
     | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationAnd >>>
-            T.liftAndLeft T.commutationAnd >>>
+            T.liftLeft T.commutationAnd >>>
             T.invert T.associationAnd
             :: a /\ (b /\ c) |~ b /\ (a /\ c)
             )
@@ -351,7 +351,7 @@ mergeClauses leftss@(left:lefts) [right]
         W.tell $ Index <$> D.fromIso (
             T.commutationAnd >>>
             T.associationAnd >>>
-            T.liftAndLeft (T.invert T.idempotenceAnd)
+            T.liftLeft (T.invert T.idempotenceAnd)
             :: (a /\ b) /\ a |~ a /\ b
             )
         return leftss
@@ -366,10 +366,10 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
     | left == right = do
         W.tell $ Index <$> D.fromIso (
             T.invert T.associationAnd >>>
-            T.liftAndRight T.commutationAnd >>>
-            T.liftAndRight (T.invert T.associationAnd) >>>
+            T.liftRight T.commutationAnd >>>
+            T.liftRight (T.invert T.associationAnd) >>>
             T.associationAnd >>>
-            T.liftAndLeft (T.invert T.idempotenceAnd)
+            T.liftLeft (T.invert T.idempotenceAnd)
             :: (a /\ b) /\ (a /\ c) |~ a /\ (c /\ b)
             )
         (left:) <$> (W.censor D.liftAndRight $ mergeClauses rights lefts)
@@ -404,14 +404,14 @@ mergeDNF [left] rightss@(right:rights)
     | left < right = return $ left:rightss
     | left == right = do
         W.tell $ Index <$> D.fromIso (
-            T.associationOr >>> T.liftOrLeft (T.invert T.idempotenceOr)
+            T.associationOr >>> T.liftLeft (T.invert T.idempotenceOr)
             :: a \/ (a \/ b) |~ a \/ b
             )
         return rightss
     | otherwise = do
         W.tell $ Index <$> D.fromIso (
             T.associationOr >>>
-            T.liftOrLeft T.commutationOr >>>
+            T.liftLeft T.commutationOr >>>
             T.invert T.associationOr
             :: a \/ (b \/ c) |~ b \/ (a \/ c)
             )
@@ -425,7 +425,7 @@ mergeDNF leftss@(left:lefts) [right]
         W.tell $ Index <$> D.fromIso (
             T.commutationOr >>>
             T.associationOr >>>
-            T.liftOrLeft (T.invert T.idempotenceOr)
+            T.liftLeft (T.invert T.idempotenceOr)
             :: (a \/ b) \/ a |~ a \/ b
             )
         return leftss
@@ -440,10 +440,10 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
     | left == right = do
         W.tell $ Index <$> D.fromIso (
             T.invert T.associationOr >>>
-            T.liftOrRight T.commutationOr >>>
-            T.liftOrRight (T.invert T.associationOr) >>>
+            T.liftRight T.commutationOr >>>
+            T.liftRight (T.invert T.associationOr) >>>
             T.associationOr >>>
-            T.liftOrLeft (T.invert T.idempotenceOr)
+            T.liftLeft (T.invert T.idempotenceOr)
             :: (a \/ b) \/ (a \/ c) |~ a \/ (c \/ b)
             )
         (left:) <$> (W.censor D.liftOrRight $ mergeDNF rights lefts)

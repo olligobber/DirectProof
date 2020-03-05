@@ -55,7 +55,7 @@ nextProgress (DNFConversion Nothing (Just conv) (Just uncon)) =
             return $ Right $ DNFConversion (Just unc) (Just conv) Nothing
         unc:_ -> do
             W.tell $ Index <$> D.fromIso (
-                T.liftOrRight T.commutationOr >>>
+                T.liftRight T.commutationOr >>>
                 T.associationOr >>>
                 T.commutationOr
                 :: a \/ (b \/ c) |~ b \/ (a \/ c)
@@ -77,7 +77,7 @@ nextProgress (DNFConversion (Just c) Nothing (Just uncon)) =
         unc:_ -> do
             W.tell $ Index <$> D.fromIso (
                 T.associationOr >>>
-                T.liftOrLeft T.commutationOr >>>
+                T.liftLeft T.commutationOr >>>
                 T.invert T.associationOr
                 :: a \/ (b \/ c) |~ b \/ (a \/ c)
                 )
@@ -98,11 +98,11 @@ nextProgress (DNFConversion (Just c) (Just conv) (Just uncon)) =
             return $ Right $ DNFConversion (Just unc) (Just nconv) Nothing
         unc:_ -> do
             W.tell $ Index <$> D.fromIso (
-                T.liftOrRight
-                    (T.liftOrRight T.commutationOr >>> T.associationOr) >>>
+                T.liftRight
+                    (T.liftRight T.commutationOr >>> T.associationOr) >>>
                 T.associationOr >>>
                 T.commutationOr >>>
-                T.liftOrRight T.associationOr
+                T.liftRight T.associationOr
                 :: a \/ (b \/ (c \/ d)) |~ c \/ ((a \/ b) \/ d)
                 )
             nconv <- W.censor (D.liftOrRight . D.liftOrLeft) $
@@ -148,7 +148,7 @@ makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
                     T.toTyped (
                         T.commutationOr >>>
                         T.distribution2 >>>
-                        T.liftAndRight T.distribution2 >>>
+                        T.liftRight T.distribution2 >>>
                         T.associationAnd
                         ) >>>
                     T.simplification
@@ -156,13 +156,13 @@ makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
                     )
             W.tell $ Index <$> D.fromTyped (
                 T.toTyped (
-                    T.liftAndLeft (
-                        T.liftOrLeft T.doubleNegation >>>
+                    T.liftLeft (
+                        T.liftLeft T.doubleNegation >>>
                         T.invert T.defImplication
                         ) >>>
-                    T.liftAndRight (
+                    T.liftRight (
                         T.commutationOr >>>
-                        T.liftOrLeft T.doubleNegation >>>
+                        T.liftLeft T.doubleNegation >>>
                         T.invert T.defImplication
                         )
                     ) >>>
@@ -172,7 +172,7 @@ makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
                 >>>
                 T.toTyped (
                     T.defImplication >>>
-                    T.liftOrLeft (T.invert T.doubleNegation) >>>
+                    T.liftLeft (T.invert T.doubleNegation) >>>
                     T.invert T.idempotenceOr
                     )
                 :: (b \/ Not a) /\ (b \/ a) |- b
@@ -197,7 +197,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                     T.toTyped (
                         T.commutationOr >>>
                         T.distribution2 >>>
-                        T.liftAndRight T.distribution2 >>>
+                        T.liftRight T.distribution2 >>>
                         T.associationAnd
                         ) >>>
                     T.simplification
@@ -205,13 +205,13 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                     )
             W.tell $ Index <$> D.fromTyped (
                 T.toTyped (
-                    T.liftAndLeft (
-                        T.liftOrLeft T.doubleNegation >>>
+                    T.liftLeft (
+                        T.liftLeft T.doubleNegation >>>
                         T.invert T.defImplication
                         ) >>>
-                    T.liftAndRight (
+                    T.liftRight (
                         T.commutationOr >>>
-                        T.liftOrLeft T.doubleNegation >>>
+                        T.liftLeft T.doubleNegation >>>
                         T.invert T.defImplication
                         )
                     ) >>>
@@ -221,7 +221,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
                 >>>
                 T.toTyped (
                     T.defImplication >>>
-                    T.liftOrLeft (T.invert T.doubleNegation) >>>
+                    T.liftLeft (T.invert T.doubleNegation) >>>
                     T.invert T.idempotenceOr
                     )
                 :: (b \/ Not a) /\ (b \/ a) |- b
