@@ -1,11 +1,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module ReLabel (
     reLabelInt,
-    Two,
     Labeling(..),
-    reLabel,
     SmartIndex(..)
 ) where
 
@@ -20,41 +22,55 @@ import Render (Renderable(..))
 reLabelInt :: (Ord x, Traversable t) => t x -> t Integer
 reLabelInt struct = S.evalState (traverse (S.state . onOne) struct) startI where
     startI = (1, M.empty)
-    onOne oldLabel (nextLabel, used) = case M.lookup oldLabel used of
-        Nothing -> (nextLabel, (nextLabel + 1, M.insert oldLabel nextLabel used))
-        Just newLabel -> (newLabel, (nextLabel, used))
-
-type Two x = Either x x
+    onOne oldLabel (nextLabel, usedL) = case M.lookup oldLabel usedL of
+        Nothing -> (nextLabel, (nextLabel + 1, M.insert oldLabel nextLabel usedL))
+        Just newLabel -> (newLabel, (nextLabel, usedL))
 
 -- Types that support relabelling a disjoint union in a structure
 class Labeling x where
-    data family State x :: *
+
+    type family State x :: *
+    type State x = [Either x x]
+
     -- Start state of relabelling
     start :: State x
+    default start :: State x ~ [Either x x] => State x
+    start = []
+
     -- Relabel one element, updating the state
-    reLabelOne :: Two x -> State x -> (x, State x)
+    reLabelOne :: Either x x -> State x -> (x, State x)
+    default reLabelOne :: State x ~ [Either x x] =>
+        Either x x -> State x -> (x, State x)
+    reLabelOne x xs = (last $ reLabel $ xs ++ [x], xs ++ [x])
+
+    -- Relabel an entire structure
+    reLabel :: Traversable t => t (Either x x) -> t x
+    reLabel struct =
+        S.evalState (traverse (S.state . (reLabelOne @x)) struct) (start @x)
+
     -- A single label to be used when one extra is needed
     single :: x
     -- Labels that should be preserved over others
     preserve :: x -> Bool
+    preserve = const False
 
--- Relabel all elements of a structure
-reLabel :: (Labeling x, Traversable t) => t (Two x) -> t x
-reLabel struct = S.evalState (traverse (S.state . reLabelOne) struct) start
+    {- MINIMAL ((State, start, reLabelOne) | reLabel), single -}
+
+data StateInteger = StateInteger {
+    next :: Integer,
+    used :: Map (Either Integer Integer) Integer
+}
 
 -- Relabel with 1,2..
 instance Labeling Integer where
-    data State Integer = StateInteger {
-        nextInt :: Integer,
-        usedInt :: Map (Two Integer) Integer
-    }
+    type State Integer = StateInteger
     start = StateInteger 1 M.empty
-    reLabelOne oldLabel state = case M.lookup oldLabel $ usedInt state of
+    reLabelOne oldLabel state = case M.lookup oldLabel $ used state of
         Just newLabel -> (newLabel, state)
-        Nothing -> ( nextInt state,
+        Nothing -> ( next state,
             StateInteger
-                (nextInt state + 1)
-                (M.insert oldLabel (nextInt state) $ usedInt state)
+                (next state + 1)
+                (M.insert oldLabel (next state) $ used state)
             )
     single = 1
     preserve = const False
@@ -72,28 +88,25 @@ instance Functor SmartIndex where
 
 -- Keeping values and relabel indices with 1,2...
 instance Labeling (SmartIndex x) where
-    data State (SmartIndex x) = StateSmart {
-        nextSmart :: Integer,
-        usedSmart :: Map (Two Integer) Integer
-    }
-    start = StateSmart 1 M.empty
+    type State (SmartIndex x) = StateInteger
+    start = StateInteger 1 M.empty
     reLabelOne (Left (Value label)) state = (Value label, state)
     reLabelOne (Right (Value label)) state = (Value label, state)
     reLabelOne (Left (Index oldLabel)) state =
-        case M.lookup (Left oldLabel) $ usedSmart state of
+        case M.lookup (Left oldLabel) $ used state of
             Just newLabel -> (Index newLabel, state)
-            Nothing -> (Index $ nextSmart state,
-                StateSmart
-                    (nextSmart state + 1)
-                    (M.insert (Left oldLabel) (nextSmart state) $ usedSmart state)
+            Nothing -> (Index $ next state,
+                StateInteger
+                    (next state + 1)
+                    (M.insert (Left oldLabel) (next state) $ used state)
                 )
     reLabelOne (Right (Index oldLabel)) state =
-        case M.lookup (Right oldLabel) $ usedSmart state of
+        case M.lookup (Right oldLabel) $ used state of
             Just newLabel -> (Index newLabel, state)
-            Nothing -> (Index $ nextSmart state,
-                StateSmart
-                    (nextSmart state + 1)
-                    (M.insert (Right oldLabel) (nextSmart state) $ usedSmart state)
+            Nothing -> (Index $ next state,
+                StateInteger
+                    (next state + 1)
+                    (M.insert (Right oldLabel) (next state) $ used state)
                 )
     single = Index 1
     preserve (Index _) = False
