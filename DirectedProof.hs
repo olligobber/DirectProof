@@ -22,9 +22,11 @@ import ReLabel (Labeling, SmartIndex(..))
 import WFF (WFF(..))
 import Render (Renderable(..))
 
+-- A one directional proof
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
     deriving (Show, Eq)
 
+-- Traversable functor on propositions
 instance Functor DirectedProof where
     fmap f = DirectedProof . fmap f . toPlain
 
@@ -34,21 +36,26 @@ instance Foldable DirectedProof where
 instance Traversable DirectedProof where
     sequenceA = fmap DirectedProof . sequenceA . toPlain
 
+-- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (DirectedProof x) where
     (DirectedProof p1) <> (DirectedProof p2) = DirectedProof $ p1 <> p2
 
 instance (Ord x, Labeling x) => Monoid (DirectedProof x) where
     mempty = DirectedProof mempty
 
+-- Pretty printing for the user
 instance Renderable x => Renderable (DirectedProof x) where
     render = render . toPlain
 
+-- Remove typing information
 fromTyped :: a |- b -> DirectedProof Integer
 fromTyped = DirectedProof . T.toPlain
 
+-- Equivalence proof
 newtype EquivProof x = EquivProof { toDirected :: DirectedProof x }
     deriving Show
 
+-- Traversable functor on propositions
 instance Functor EquivProof where
     fmap f = EquivProof . fmap f . toDirected
 
@@ -58,23 +65,30 @@ instance Foldable EquivProof where
 instance Traversable EquivProof where
     sequenceA = fmap EquivProof . sequenceA . toDirected
 
+-- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
     (EquivProof p1) <> (EquivProof p2) = EquivProof $ p1 <> p2
 
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
     mempty = EquivProof mempty
 
+-- Pretty printing for the user
 instance Renderable x => Renderable (EquivProof x) where
     render = render . toDirected
 
+-- Empty proof
 identity :: WFF x -> EquivProof x
 identity = EquivProof . DirectedProof . P.identity
 
+-- Remove typing information
 fromIso :: a |~ b -> EquivProof Integer
 fromIso = EquivProof . fromTyped . T.toTyped
 
+-- Reverse a proof
 invert :: EquivProof x -> EquivProof x
 invert = EquivProof . DirectedProof . P.invert . toPlain . toDirected
+
+-- Lifts
 
 liftAndRight :: Labeling x => EquivProof x -> EquivProof x
 liftAndRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $

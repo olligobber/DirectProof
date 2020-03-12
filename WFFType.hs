@@ -17,19 +17,17 @@ module WFFType (
 import WFF (WFF(..))
 
 -- Type level WFFs
-
 infix 5 /\
 infix 5 \/
 infix 5 -->
 infix 5 <->
-
 data (/\) a b = And
 data (\/) a b = Or
 data (-->) a b = Imp
 data (<->) a b = Equ
 data Not a
 
--- Binary operations class, used for lifts
+-- Binary operations class, used for lifts of proofs
 class BinOp b where
     getop :: b x y
     extract :: b x y -> (forall a. WFF a -> WFF a -> WFF a)
@@ -50,7 +48,7 @@ instance BinOp (<->) where
     getop = Equ
     extract Equ = (:=:)
 
--- Algebraic operations class, used for algebraic equivalences
+-- Algebraic operations class, used for algebraic equivalence rules
 class (BinOp b, BinOp c) => AlgOp b c | b -> c, c -> b
 
 instance AlgOp (/\) (\/)

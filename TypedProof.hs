@@ -26,47 +26,52 @@ import WFF (WFF(..))
 import WFFType
 import Render (Renderable(..))
 
--- Proof symbols
-infix 2 |-
-infix 2 |~
-
 -- A one directional proof
+infix 2 |-
 newtype (|-) start end = TypedProof { toPlain :: Proof Integer}
 
+{-
+    Allow proof composition only when the end of one matches the start of the
+    next, using (>>>) :: a |- b -> b |- c -> a |- c
+-}
 instance Category (|-) where
     id = TypedProof mempty
     (TypedProof p2) . (TypedProof p1) = TypedProof $ p1 <> p2
 
+-- Allow pretty rendering of proofs
 instance Renderable (a |- b) where
     render (TypedProof pf) = render $ ("p_" <>) . show <$> pf
 
--- Two directional proof
+-- Invertible proofs
+infix 2 |~
 newtype (|~) a b = IsoProof { toTyped :: a |- b }
 
+-- Allow proof composition similar to |-
 instance Category (|~) where
     id = IsoProof id
     IsoProof p2 . IsoProof p1 = IsoProof $ p2 . p1
 
+-- Allow pretty rendering of proofs
 instance Renderable (a |~ b) where
     render (IsoProof pf) = render pf
 
 invert :: a |~ b -> b |~ a
 invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
--- Lift proofs as subformulas
+-- Lift invertible proofs by application to subformulas
 
 liftLeft :: forall a b c op. BinOp op => a |~ b -> a `op` c |~ b `op` c
-liftLeft (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftLeft
-    (extract (getop :: op () ())) p
+liftLeft (IsoProof (TypedProof p)) =
+    IsoProof $ TypedProof $ P.liftLeft (extract (getop :: op () ())) p
 
 liftRight :: forall a b c op. BinOp op => a |~ b -> c `op` a |~ c `op` b
-liftRight (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.liftRight
-    (extract (getop :: op () ())) p
+liftRight (IsoProof (TypedProof p)) =
+    IsoProof $ TypedProof $ P.liftRight (extract (getop :: op () ())) p
 
 liftNot :: a |~ b -> Not a |~ Not b
 liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p
 
--- Equivalence rules
+-- Equivalence rules (invertible)
 
 deMorgans :: forall a b op1 op2. AlgOp op1 op2 =>
     Not (a `op1` b) |~ Not a `op2` Not b
@@ -148,7 +153,7 @@ idempotence = IsoProof $ TypedProof $ P.simpleRule
     (extract (getop :: op () ()) (Prop 1) (Prop 1))
     "Idempotence"
 
--- Deduction rules
+-- Deduction rules (directional)
 
 modusPonens :: a |- b --> c -> a |- b -> a |- c
 modusPonens (TypedProof p1) (TypedProof p2) = TypedProof $ P.complexRule

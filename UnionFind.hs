@@ -31,15 +31,14 @@ data UnionFind m i v = UnionFind {
     identity :: m i
 }
 
+{-
+    Each element of UnionFind stores the index of its parent, or is a root
+    storing its rank and value
+-}
 data UnionElement i v = ChildOf i | Root Integer v
 
--- Specialised setters and getters for UnionFind
-infix 9 !
+-- Specialised setter for UnionFind
 infix 9 //
-
-(!) :: UnionFind m i v -> i -> UnionElement i v
-uf ! index = getter uf (members uf) index
-
 (//) :: UnionFind m i v -> (i, UnionElement i v) -> UnionFind m i v
 uf // (index, val) = UnionFind
     (getter uf)
@@ -52,7 +51,7 @@ getRank (Root x _) = x
 getRank _ = error "Element is not a root"
 
 {-
-    Make a unionfind where everything is seperate given the map-like type
+    Make a UnionFind where everything is seperate given the map-like type
     prefilled with indices mapping to themselves and a value
 -}
 new :: Functor m => Getter m i -> Setter m i -> m (i, v) -> UnionFind m i v
@@ -63,17 +62,17 @@ new gets sets structure = UnionFind gets sets
 -- Stateful UnionFind operations
 type UnionFindS m i v = State (UnionFind m i v)
 
--- Stateful getter for unionfind
+-- Stateful getter for UnionFind
 extract :: i -> UnionFindS m i v (UnionElement i v)
-extract mem = S.gets (! mem)
+extract mem = S.gets $ \uf -> getter uf (members uf) mem
 --
--- Set a unionfind element's parent
+-- Set a UnionFind element's parent
 setparent :: Eq i => i -> i -> UnionFindS m i v ()
 setparent child parent
     | child == parent   = error "Tried to make loop in UnionFind"
     | otherwise         = S.modify (// (child, ChildOf parent))
 
--- Set a unionfind element as a root with a given rank
+-- Set a UnionFind element as a root with a given rank
 setrank :: i -> Integer -> UnionFindS m i v ()
 setrank root rank = do
     rootVal <- extract root
@@ -81,7 +80,7 @@ setrank root rank = do
         ChildOf _ -> error "Tried to make non-root of UnionFind into a root"
         Root _ val -> S.modify (// (root, Root rank val))
 
--- Set a unionfind element as a root with a given value
+-- Set a UnionFind element as a root with a given value
 setvalue :: i -> v -> UnionFindS m i v ()
 setvalue root val = do
     rootVal <- extract root

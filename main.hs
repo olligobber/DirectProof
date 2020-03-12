@@ -13,9 +13,11 @@ import Render (putRender)
 import ReLabel (SmartIndex(Value))
 import Logical (counterexample)
 
+-- Simple prompt for input
 prompt :: String -> IO Text
 prompt p = putStr p >> hFlush stdout >> TIO.getLine
 
+-- Prompt for a conclusion and assumptions
 promptInput :: IO [WFF Text]
 promptInput = do
     goal <- prompt "Conclusion: "
@@ -23,6 +25,7 @@ promptInput = do
         Left e -> print e >> promptInput
         Right c -> (c:) <$> promptAssumptions 1
 
+-- Prompt for the nth assumption
 promptAssumptions :: Int -> IO [WFF Text]
 promptAssumptions 1 = do
     newa <- prompt "Assumption 1: "
@@ -36,6 +39,7 @@ promptAssumptions i = do
         (_, Left e) -> print e >> promptAssumptions i
         (_, Right a) -> (a:) <$> promptAssumptions (i+1)
 
+-- Print out feedback for selected input
 solve :: [WFF Text] -> IO ()
 solve [] = error "No conclusion"
 solve [_] = error "No assumptions"
@@ -57,15 +61,17 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [] -> promptInput >>= solve
-        [_] -> do
+        [] -> promptInput >>= solve -- Interactive mode
+        [_] -> do -- Tried to use arguments but was wrong, providing help
             putStrLn "To use command line arguments, provide the conclusion"
             putStrLn "as the first argument, and the assumptions as the rest"
-            promptInput >>= solve
-        _ -> case traverse
+            promptInput >>= solve -- Now enter interactive mode
+        _ -> case traverse -- Arguments provided, try and parse
             (\(i,x) -> parseWFF
                 (if i == 0 then "Conclusion" else "Assumption " ++ show i) $
                 fromString x) $
             zip ([0..] :: [Int]) args of
+                -- Error parsing, show it and enter interactive mode
                 Left e -> print e >> promptInput >>= solve
+                -- Success parsing, output feedback
                 Right as -> solve as

@@ -3,7 +3,7 @@
 
 module Render (
     Renderable(..),
-    putRender,
+    putRender
 ) where
 
 import Data.Map.Lazy (Map)
@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.String (fromString)
 
+-- Types with pretty rendering
 class Renderable x where
     render :: x -> Text
 

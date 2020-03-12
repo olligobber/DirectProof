@@ -14,6 +14,7 @@ import Data.Functor.Compose (Compose(Compose))
 
 import WFF(WFF(..))
 
+-- Class for boolean-like types
 class Eq x => Logical x where
     meet :: x -> x -> x -- Logical and
     join :: x -> x -> x -- Logical or
@@ -43,6 +44,7 @@ instance Logical (Maybe Bool) where
     top = Just True
     bot = Just False
 
+-- Evaluate a WFF where the propositions are boolean-like
 evaluate :: Logical x => WFF x -> x
 evaluate (Prop x) = x
 evaluate (Not w) = neg $ evaluate w
@@ -51,6 +53,10 @@ evaluate (left :&: right) = (meet `on` evaluate) left right
 evaluate (left :>: right) = evaluate $ Not left :|: right
 evaluate (left :=: right) = evaluate $ (left :>: right) :&: (right :>: left)
 
+{-
+    Find an assignment of values to propositions in a formula that makes it not
+    true
+-}
 counterexample :: (Ord x, Logical y) => [y] -> [WFF x] -> WFF x ->
     Maybe (Map x y)
 counterexample vals firsts second =
@@ -61,5 +67,5 @@ counterexample vals firsts second =
     where
         props = S.toList $
             foldMap S.singleton (Compose firsts) <> foldMap S.singleton second
-        tables = M.fromList <$> mapM (\x -> [(,) x] <*> vals) props
+        tables = M.fromList <$> mapM (\x -> ((,) x) <$> vals) props
         sateval wff table = evaluate ((table M.!) <$> wff) == top

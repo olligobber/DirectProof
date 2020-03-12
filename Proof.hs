@@ -25,32 +25,46 @@ import Render (Renderable(..))
 
 -- Very basic proof object
 data Proof x = Proof {
-    formulas :: [WFF x], -- List of formulas
-    reasons :: [Text], -- List of reasons
-    references :: [[Int]] -- References for each reason, stored as relative indices
+    -- List of formulas
+    formulas :: [WFF x],
+    -- List of reasons for each deduction except the first
+    reasons :: [Text],
+    -- References for each reason, stored as relative indices
+    references :: [[Int]]
 } deriving (Show, Eq)
 
+-- Empty proof
 identity :: WFF x -> Proof x
 identity wff = Proof [wff] [] []
 
+-- Apply a function to all WFFs of a proof
 mapWFF :: (WFF x -> WFF y) -> Proof x -> Proof y
 mapWFF f p = Proof (f <$> formulas p) (reasons p) (references p)
 
--- only works if the references are [-1,-1..]
+-- Reverses a proof, only works if the references are all to previous line
 invert :: Proof x -> Proof x
 invert p
-    | all (==[-1]) (references p) = Proof (rp formulas) (rp reasons) (references p)
-    | otherwise = error "Cannot reverse proof as one of its rules is irreversible"
+    | all (==[-1]) (references p) =
+        Proof (rp formulas) (rp reasons) (references p)
+    | otherwise =
+        error "Cannot reverse proof as one of its rules is irreversible"
     where
         rp = reverse . ($ p)
 
-liftLeft :: Labeling x => (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
+-- Apply a proof to left subformula
+liftLeft :: Labeling x =>
+    (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
 liftLeft f p = reLabel $ mapWFF (flip f $ Prop $ Left single) $ Right <$> p
 
-liftRight :: Labeling x => (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
+-- Apply a proof to right subformula
+liftRight :: Labeling x =>
+    (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
 liftRight f p = reLabel $ mapWFF (f $ Prop $ Left single) $ Right <$> p
 
--- Composition, using the function to prefer certain propositions
+{-
+    Left to right composition, using the given function to prefer keeping
+    certain propositions
+-}
 composePref :: (Ord x, Ord y) => (x -> Bool) -> (y -> Bool) ->
     Proof x -> Proof y -> Proof (Either x y)
 composePref px py p1 p2 = case W.matchPref (either px py) p1end p2start of
@@ -89,10 +103,14 @@ composePref px py p1 p2 = case W.matchPref (either px py) p1end p2start of
         p1end = Left <$> last (formulas p1)
         p2start = Right <$> head (formulas p2)
 
--- Left to Right composition
+{-
+    Left to Right composition of proofs, with no preference on propositions to
+    keep
+-}
 compose :: (Ord x, Ord y) => Proof x -> Proof y -> Proof (Either x y)
 compose = composePref (const False) (const False)
 
+-- Traversable functor on propositions
 instance Functor Proof where
     fmap f = mapWFF (fmap f)
 
@@ -105,12 +123,14 @@ instance Traversable Proof where
         <*> pure (reasons proof)
         <*> pure (references proof)
 
+-- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (Proof x) where
     p1 <> p2 = reLabel $ composePref preserve preserve p1 p2
 
 instance (Ord x, Labeling x) => Monoid (Proof x) where
     mempty = identity $ Prop single
 
+-- Pretty rendering
 instance Renderable x => Renderable (Proof x) where
     render pf = T.unlines $
         zipWith3 formatCol rightNumbers midFormulas leftReasons

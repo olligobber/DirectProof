@@ -18,13 +18,19 @@ import TypedProof (type (|~)(), type (|-)())
 import qualified TypedProof as T
 import ReLabel (SmartIndex(..))
 
--- Represents a partly done conversion, with the formula (inP | (conv | unconv))
--- If one is missing, form is (a | b)
--- If two are missing, form is a
--- Three should never be missing
+{-
+    Represents a partly done conversion, with the formula
+        inP \/ (conv \/ unconv).
+    If one is missing, form is a \/ b.
+    If two are missing, form is a.
+    Three should never be missing.
+-}
 data DNFConversion x = DNFConversion {
+    -- Clause currently being converted
     inProgress :: Maybe (Clause (SmartIndex x)),
+    -- Previously converted clauses
     converted :: Maybe (DNF (SmartIndex x)),
+    -- Clauses yet to be converted
     unconverted :: Maybe (DNF (SmartIndex x))
 } deriving Show
 
@@ -35,7 +41,10 @@ startConversion dnf = DNFConversion
     Nothing
     (pop dnf)
 
--- Move inProgress to converted and get something from unconverted to progress on
+{-
+    Move inProgress to converted and get something from unconverted to make
+    progress on
+-}
 nextProgress :: Ord x => DNFConversion x ->
     EW x (Either (DNF (SmartIndex x)) (DNFConversion x))
 nextProgress (DNFConversion Nothing Nothing Nothing) = error
@@ -109,7 +118,10 @@ nextProgress (DNFConversion (Just c) (Just conv) (Just uncon)) =
                 insertClause c conv
             return $ Right $ DNFConversion (Just unc) (Just nconv) (pop uncon)
 
--- Check if a clause contains two opposite atoms and return the proposition
+{-
+    Check if a clause contains two opposite atoms and return the proposition
+    involved
+-}
 getContradiction :: Eq x => Clause x -> Maybe x
 getContradiction clause = case
     filter ((==2) . length) $ groupBy ((==) `on` fst) $ atoms clause of
@@ -121,7 +133,7 @@ getContradiction clause = case
 isSubClause :: Eq x => Clause x -> Clause x -> Bool
 isSubClause = flip (isSubsequenceOf `on` atoms)
 
--- Find the longest subclause from a DNF
+-- Find the longest subclause of the given clause from a DNF
 bestSubClause :: Eq x => Clause x -> DNF x -> Maybe (Clause x)
 bestSubClause clause dnf = case filter (isSubClause clause) $ clauses dnf of
     [] -> Nothing
@@ -231,6 +243,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
             ninP <- removeAtoms (atoms inP \\ atoms c) inP
             return $ DNFConversion (Just ninP) conv unconv
 
+-- Complete conversion to goal dnf, but possibly missing some clauses
 finishConversion :: Ord x => DNFConversion x -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 finishConversion dnfc goal = do
@@ -244,6 +257,7 @@ addUntil :: Ord x => DNF (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 addUntil start goal = addAll (clauses goal \\ clauses start) start
 
+-- Completely convert one DNF to another
 convertDNF :: Ord x => DNF (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 convertDNF start goal =

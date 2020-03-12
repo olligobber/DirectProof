@@ -20,19 +20,28 @@ import Render (Renderable(..))
 
 -- Relabel with 1,2..
 reLabelInt :: (Ord x, Traversable t) => t x -> t Integer
-reLabelInt struct = S.evalState (traverse (S.state . onOne) struct) startI where
-    startI = (1, M.empty)
-    onOne oldLabel (nextLabel, usedL) = case M.lookup oldLabel usedL of
-        Nothing -> (nextLabel, (nextLabel + 1, M.insert oldLabel nextLabel usedL))
-        Just newLabel -> (newLabel, (nextLabel, usedL))
+reLabelInt struct = S.evalState (traverse (S.state . onOne) struct) startI
+    where
+        startI = (1, M.empty)
+        onOne oldLabel (nextLabel, usedL) = case M.lookup oldLabel usedL of
+            Nothing ->
+                (nextLabel, (nextLabel + 1, M.insert oldLabel nextLabel usedL))
+            Just newLabel -> (newLabel, (nextLabel, usedL))
 
--- Types that support relabelling a disjoint union in a structure
+{-
+    Types that support relabelling a disjoint union in a structure.
+    The expected use is to define a state for relabelling, with a start state
+    and a step function, which will be applied using traverse to a structure.
+    However, if a reLabel function is written then the other functions will
+    work, as long as reLabel uses the same labels for a list when elements
+    are added to the end.
+-}
 class Labeling x where
-
+    -- State of relabelling process
     type family State x :: *
     type State x = [Either x x]
 
-    -- Start state of relabelling
+    -- Start state of relabelling process
     start :: State x
     default start :: State x ~ [Either x x] => State x
     start = []
@@ -50,6 +59,7 @@ class Labeling x where
 
     -- A single label to be used when one extra is needed
     single :: x
+
     -- Labels that should be preserved over others
     preserve :: x -> Bool
     preserve = const False
@@ -73,7 +83,6 @@ instance Labeling Integer where
                 (M.insert oldLabel (next state) $ used state)
             )
     single = 1
-    preserve = const False
 
 -- Either a value or an index that will be relabelled properly
 data SmartIndex x = Value x | Index Integer deriving (Eq, Ord, Show)

@@ -38,8 +38,11 @@ type DW x = Writer (DirectedProof (SmartIndex x))
 toDW :: EW x v -> DW x v
 toDW = W.mapWriter (\(r, p) -> (r, D.toDirected p))
 
--- A disjunction of conjunctions of atoms of the form A or Not A
--- All lists should be sorted and represent left associative formulae
+{-
+    A disjunction of conjunctions of atoms of the form A or Not A.
+    All lists should be sorted and represent right associative formulae.
+    e.g. A /\ (B /\ ~A) is [(A,True),(B,True),(A,False)]
+-}
 newtype Clause x = Clause { atoms :: [(x,Bool)] } deriving (Show, Eq, Ord)
 newtype DNF x = DNF { clauses :: [Clause x] } deriving Show
 
@@ -51,7 +54,8 @@ pop (DNF (_:cs)) = Just $ DNF cs
 
 {-
     Bring atoms in the sorted list to the front of the clause,
-    returning the clause without those atoms
+    returning the clause without those atoms.
+    Result is of the form Removed /\ Kept.
 -}
 bringForward :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     EW x (Clause (SmartIndex x))
@@ -79,7 +83,10 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
             )
         return $ Clause $ right:nrights
 
--- Removes atoms in the sorted list from a clause, assuming the formula is alone
+{-
+    Removes atoms in the sorted list from a clause, assuming there is only one
+    clause in the formula.
+-}
 removeAtomsAlone :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     DW x (Clause (SmartIndex x))
 removeAtomsAlone _ (Clause []) = error "Invalid clause"
@@ -107,8 +114,10 @@ removeAtomsAlone removess@(remove:removes) clause@(Clause (atom:atos))
             )
         return $ nclause
 
--- Removes atoms in the sorted list from a clause, assuming the formula is of
--- the form clause | other
+{-
+    Removes atoms in the sorted list from a clause, assuming the formula is of
+    the form clause \/ other
+-}
 removeAtoms :: Ord x => [(SmartIndex x,Bool)] -> Clause (SmartIndex x) ->
     DW x (Clause (SmartIndex x))
 removeAtoms _ (Clause []) = error "Invalid clause"
@@ -144,13 +153,15 @@ removeAtoms removess@(remove:removes) clause@(Clause (atom:atos))
             )
         return $ nclause
 
+-- A DNF with one Clause
 singleton :: Clause x -> DNF x
 singleton = DNF . pure
 
+-- A Clause with one Atom
 singletonClause :: (x, Bool) -> Clause x
 singletonClause = Clause . pure
 
--- Adds a clause to a DNF, with the proof starting from (clause | dnf)
+-- Adds a clause to a DNF, with the proof starting from (clause \/ dnf)
 insertClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
     EW x (DNF (SmartIndex x))
 insertClause _ (DNF []) = error "Invalid DNF"
@@ -180,7 +191,10 @@ insertClause clause dnf@(DNF rightss@(right:rights))
         DNF . (right:) . clauses <$>
             W.censor D.liftOrRight (insertClause clause $ DNF rights)
 
--- Adds a clause to the end of a DNF starting from DNF \/ newClause
+{-
+    Adds a clause to the end of a DNF, with the proof starting from
+    DNF \/ newClause
+-}
 addEnd :: Ord x => DNF (SmartIndex x) -> EquivProof (SmartIndex x)
 addEnd (DNF []) = error "Invalid DNF"
 addEnd (DNF [_]) = mempty
@@ -190,7 +204,7 @@ addEnd (DNF (_:cs)) = mconcat
     , D.liftOrLeft (addEnd $ DNF cs)
     ]
 
--- Adds a clause to a DNF starting from DNF
+-- Adds a clause to a DNF, with the proof starting from the DNF alone
 addClause :: Ord x => Clause (SmartIndex x) -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 addClause clause dnf = do
@@ -201,7 +215,10 @@ addClause clause dnf = do
         )
     toDW $ insertClause clause dnf
 
--- Adds a sorted list of clauses to a DNF
+{-
+    Adds a sorted list of clauses to a DNF, with the proof starting from the
+    DNF alone
+-}
 addAll :: Ord x => [Clause (SmartIndex x)] -> DNF (SmartIndex x) ->
     DW x (DNF (SmartIndex x))
 addAll cs dnf = case partition (<= largest) cs of
@@ -219,7 +236,7 @@ addAll cs dnf = case partition (<= largest) cs of
     where
         largest = last $ clauses dnf
 
--- Remove all implications and equivalences
+-- Remove all implications and equivalences from a formula
 removeImpEq :: Ord x => WFF (SmartIndex x) -> EW x (WFF (SmartIndex x))
 removeImpEq (left :>: right) = do
     nleft <- W.censor D.liftImpliesLeft $ removeImpEq left
@@ -243,7 +260,7 @@ removeImpEq (left :&: right) = do
 removeImpEq (Not w) = Not <$> (W.censor D.liftNot $ removeImpEq w)
 removeImpEq w@(Prop _) = return w
 
--- Move all negations next to atoms
+-- Move all negations next to atoms in a formula
 moveNotIn :: Ord x => WFF (SmartIndex x) -> EW x (WFF (SmartIndex x))
 moveNotIn (Not (Not w)) = do
     W.tell $ Index <$> D.fromIso (T.invert T.doubleNegation :: Not (Not a) |~ a)
@@ -294,7 +311,7 @@ moveAndIn w@(Prop _) = return w
 moveAndIn _ = error
     "Equivalence, implication, or negation found after all were removed"
 
--- Turns each clause into a left associative sorted clause
+-- Turns each clause into a right associative sorted clause
 sortEachClause :: Ord x => WFF (SmartIndex x) ->
     EW x (WFF (Clause (SmartIndex x)))
 sortEachClause (left :|: right) = do
@@ -303,7 +320,7 @@ sortEachClause (left :|: right) = do
     return $ nleft :|: nright
 sortEachClause w = Prop . Clause <$> sortClause w
 
--- Turns one clause into a left associative sorted clause
+-- Turns one clause into a right associative sorted clause
 sortClause :: Ord x => WFF (SmartIndex x) -> EW x [(SmartIndex x, Bool)]
 sortClause (left :&: right) = do
     nleft <- W.censor D.liftAndLeft $ sortClause left
@@ -313,7 +330,7 @@ sortClause (Not (Prop p)) = return [(p, False)]
 sortClause (Prop p) = return [(p, True)]
 sortClause _ = error "Formula is not in DNF after conversion"
 
--- Merge two LASC into one LASC
+-- Merge two right associative clauses into one
 mergeClauses :: Ord x => [(SmartIndex x, Bool)] -> [(SmartIndex x, Bool)] ->
     EW x [(SmartIndex x, Bool)]
 mergeClauses [] _ = error "Invalid clause"
@@ -377,7 +394,7 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
         W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
         mergeClauses rightss leftss
 
--- Turns a disjunction into a left associative sorted disjunction
+-- Turns a disjunction into a right associative sorted disjunction
 sortClauses :: Ord x => WFF (Clause (SmartIndex x)) ->
     EW x [Clause (SmartIndex x)]
 sortClauses (left :|: right) = do
@@ -387,7 +404,7 @@ sortClauses (left :|: right) = do
 sortClauses (Prop w) = return [w]
 sortClauses _ = error "Unsorted clause after sorting"
 
--- Merges two LASD into one LASD
+-- Merges two right associative disjuctions into one
 mergeDNF :: Ord x => [Clause (SmartIndex x)] -> [Clause (SmartIndex x)] ->
     EW x [Clause (SmartIndex x)]
 mergeDNF [] _ = error "Invalid DNF"
@@ -451,7 +468,7 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
         W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
         mergeDNF rightss leftss
 
--- Converts a formula to DNF and returns a proof WFF |~ DNF
+-- Converts a formula to DNF, and returns a proof WFF |~ DNF
 toDNF :: Ord x => WFF (SmartIndex x) -> EW x (DNF (SmartIndex x))
 toDNF wff = W.censor (D.identity wff <>) $
     removeImpEq wff >>=
