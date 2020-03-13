@@ -12,6 +12,8 @@ import WFFParser
 import Render (putRender)
 import ReLabel (SmartIndex(Value))
 import Logical (counterexample)
+import Proof (verify)
+import DirectedProof (toPlain)
 
 -- Simple prompt for input
 prompt :: String -> IO Text
@@ -45,8 +47,12 @@ solve [] = error "No conclusion"
 solve [_] = error "No assumptions"
 solve (goal:starts) = case (counterexample [False,True] starts goal,
     counterexample [Just False, Nothing, Just True] starts goal) of
-        (Nothing, Nothing) -> putRender $
-            convert (fmap Value <$> starts) (Value <$> goal)
+        (Nothing, Nothing) -> do
+            let pf = convert (fmap Value <$> starts) (Value <$> goal)
+            putRender pf
+            case verify $ toPlain pf of
+                Nothing -> return ()
+                Just l -> error $ "Proof has an error on line " ++ show l
         (Nothing, Just t) -> do
             putStrLn "Cannot be proven directly, due to the following"
             putStrLn "3-valued assignment being a counter-example:"

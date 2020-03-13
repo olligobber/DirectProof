@@ -12,13 +12,17 @@ module Proof (
     algebraicRule,
     equivalenceRule,
     simpleRule,
-    complexRule
+    complexRule,
+    verify
 ) where
 
-import Data.Text (Text)
 import qualified Data.Text as T
 import Data.String (fromString)
 import Data.Functor.Compose (Compose(..))
+import Control.Monad.State (StateT)
+import qualified Control.Monad.State as S
+import Data.Map.Lazy (Map)
+import qualified Data.Map.Lazy as M
 
 import WFF (WFF(..), BinaryOperator)
 import qualified WFF as W
@@ -260,3 +264,39 @@ complexRule rule pf1 pf2
                 ]
         length1 = toInteger $ length $ reasons pf1
         length2 = toInteger $ length $ reasons pf2
+
+type Verification x = StateT (Map Integer (WFF x)) (Either Integer)
+
+verifyS :: Ord x => (Integer, WFF x, Deduction) -> Verification x ()
+verifyS (l, formula, Assumption) = S.modify $ M.insert l formula
+verifyS (l, formula, Algebraic rule i) = do
+    ref <- S.gets $ M.lookup (l-i)
+    case ref of
+        Just refs | verifyAlg rule refs formula ->
+            S.modify $ M.insert l formula
+        _ -> S.StateT $ const $ Left l
+verifyS (l, formula, Equiv rule i) = do
+    ref <- S.gets $ M.lookup (l-i)
+    case ref of
+        Just refs | verifyEquivs rule refs formula ->
+            S.modify $ M.insert l formula
+        _ -> S.StateT $ const $ Left l
+verifyS (l, formula, Simple rule i) = do
+    ref <- S.gets $ M.lookup (l-i)
+    case ref of
+        Just refs | verifySimple rule refs formula ->
+            S.modify $ M.insert l formula
+        _ -> S.StateT $ const $ Left l
+verifyS (l, formula, Complex rule i j) = do
+    refi <- S.gets $ M.lookup (l-i)
+    refj <- S.gets $ M.lookup (l-j)
+    case (refi, refj) of
+        (Just refsi, Just refsj) | verifyComplex rule refsi refsj formula ->
+            S.modify $ M.insert l formula
+        _ -> S.StateT $ const $ Left l
+
+verify :: Ord x => Proof x -> Maybe Integer
+verify pf = case flip S.evalStateT M.empty $ mapM_ verifyS $
+    zip3 [1..] (formulas pf) (Assumption:reasons pf) of
+        Left l -> Just l
+        Right _ -> Nothing
