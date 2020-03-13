@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module WFFType (
     Not,
@@ -10,43 +12,38 @@ module WFFType (
     type (\/)(),
     type (-->)(),
     type (<->)(),
-    BinOp(getop, extract),
+    BinOp(getop),
     AlgOp
 ) where
 
-import WFF (WFF(..))
+import WFF (WFF(..), BinaryOperator)
 
 -- Type level WFFs
 infix 5 /\
 infix 5 \/
 infix 5 -->
 infix 5 <->
-data (/\) a b = And
-data (\/) a b = Or
-data (-->) a b = Imp
-data (<->) a b = Equ
+data (/\) a b
+data (\/) a b
+data (-->) a b
+data (<->) a b
 data Not a
 
 -- Binary operations class, used for lifts of proofs
-class BinOp b where
-    getop :: b x y
-    extract :: b x y -> (forall a. WFF a -> WFF a -> WFF a)
+class BinOp (b :: * -> * -> *) where
+    getop :: BinaryOperator
 
 instance BinOp (/\) where
-    getop = And
-    extract And = (:&:)
+    getop = (:&:)
 
 instance BinOp (\/) where
-    getop = Or
-    extract Or = (:|:)
+    getop = (:|:)
 
 instance BinOp (-->) where
-    getop = Imp
-    extract Imp = (:>:)
+    getop = (:>:)
 
 instance BinOp (<->) where
-    getop = Equ
-    extract Equ = (:=:)
+    getop = (:=:)
 
 -- Algebraic operations class, used for algebraic equivalence rules
 class (BinOp b, BinOp c) => AlgOp b c | b -> c, c -> b

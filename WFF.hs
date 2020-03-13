@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module WFF(
     WFF(..),
+    BinaryOperator,
     MatchError(..),
     matchPref,
     match,
-    applyMap
+    applyMap,
+    matchSub
 ) where
 
 import Data.Function (on)
@@ -23,6 +26,7 @@ import Data.Maybe (fromMaybe)
 import UnionFind (UnionFind)
 import qualified UnionFind as U
 import Render (Renderable(..))
+import Mapping (Mapping(..))
 
 -- Logical connectives
 infix 5 :|:
@@ -39,6 +43,8 @@ data WFF c =
     (:>:) (WFF c) (WFF c) | -- Implication
     (:=:) (WFF c) (WFF c)   -- Equivalence
     deriving Eq
+
+type BinaryOperator = forall x. WFF x -> WFF x -> WFF x
 
 -- Get the infix constructors to render properly
 instance Show c => Show (WFF c) where
@@ -204,3 +210,20 @@ applyMap :: Ord x => Map x (WFF x) -> WFF x -> WFF x
 applyMap m w = w >>= \p -> case M.lookup p m of
     Nothing -> Prop p
     Just n -> n
+
+{-
+    Match one WFF to another after substitutions have been applied, and return
+    a mapping if it matches
+-}
+matchSub :: (Ord x, Eq y) => WFF x -> WFF y -> Mapping x (WFF y)
+matchSub (Prop prop) wff = Mapping $ Just $ M.singleton prop wff
+matchSub (Not wff1) (Not wff2) = matchSub wff1 wff2
+matchSub (left1 :|: right1) (left2 :|: right2) =
+    matchSub left1 left2 <> matchSub right1 right2
+matchSub (left1 :&: right1) (left2 :&: right2) =
+    matchSub left1 left2 <> matchSub right1 right2
+matchSub (left1 :>: right1) (left2 :>: right2) =
+    matchSub left1 left2 <> matchSub right1 right2
+matchSub (left1 :=: right1) (left2 :=: right2) =
+    matchSub left1 left2 <> matchSub right1 right2
+matchSub _ _ = Mapping Nothing

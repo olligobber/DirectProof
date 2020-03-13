@@ -9,6 +9,8 @@ module Proof (
     invert,
     liftLeft,
     liftRight,
+    algebraicRule,
+    equivalenceRule,
     simpleRule,
     complexRule
 ) where
@@ -18,47 +20,44 @@ import qualified Data.Text as T
 import Data.String (fromString)
 import Data.Functor.Compose (Compose(..))
 
-import WFF (WFF(..))
+import WFF (WFF(..), BinaryOperator)
 import qualified WFF as W
 import ReLabel (Labeling, reLabel, reLabelInt, single, preserve)
 import Render (Renderable(..))
+import Deduction
 
 -- Very basic proof object
 data Proof x = Proof {
     -- List of formulas
     formulas :: [WFF x],
-    -- List of reasons for each deduction except the first
-    reasons :: [Text],
-    -- References for each reason, stored as relative indices
-    references :: [[Int]]
+    -- List of reasons for each deduction, except the first
+    reasons :: [Deduction]
 } deriving (Show, Eq)
 
 -- Empty proof
 identity :: WFF x -> Proof x
-identity wff = Proof [wff] [] []
+identity wff = Proof [wff] []
 
 -- Apply a function to all WFFs of a proof
 mapWFF :: (WFF x -> WFF y) -> Proof x -> Proof y
-mapWFF f p = Proof (f <$> formulas p) (reasons p) (references p)
+mapWFF f p = Proof (f <$> formulas p) (reasons p)
 
 -- Reverses a proof, only works if the references are all to previous line
 invert :: Proof x -> Proof x
 invert p
-    | all (==[-1]) (references p) =
-        Proof (rp formulas) (rp reasons) (references p)
+    | all invertible (reasons p) =
+        Proof (rp formulas) (rp reasons)
     | otherwise =
         error "Cannot reverse proof as one of its rules is irreversible"
     where
         rp = reverse . ($ p)
 
 -- Apply a proof to left subformula
-liftLeft :: Labeling x =>
-    (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
+liftLeft :: Labeling x => BinaryOperator -> Proof x -> Proof x
 liftLeft f p = reLabel $ mapWFF (flip f $ Prop $ Left single) $ Right <$> p
 
 -- Apply a proof to right subformula
-liftRight :: Labeling x =>
-    (forall y. WFF y -> WFF y -> WFF y) -> Proof x -> Proof x
+liftRight :: Labeling x => BinaryOperator -> Proof x -> Proof x
 liftRight f p = reLabel $ mapWFF (f $ Prop $ Left single) $ Right <$> p
 
 {-
@@ -72,7 +71,6 @@ composePref px py p1 p2 = case W.matchPref (either px py) p1end p2start of
         ( (W.applyMap m . fmap Left <$> formulas p1)
             ++ tail (W.applyMap m . fmap Right <$> formulas p2) )
         ( reasons p1 ++ reasons p2 )
-        ( references p1 ++ references p2 )
     (Left (W.StructureError x y)) -> let
         [a,b,c,d] = getCompose $ reLabelInt $ Compose [p1end, p2start, x, y]
         in error $ unlines
@@ -121,7 +119,6 @@ instance Traversable Proof where
     sequenceA proof = Proof
         <$> traverse sequenceA (formulas proof)
         <*> pure (reasons proof)
-        <*> pure (references proof)
 
 -- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (Proof x) where
@@ -146,45 +143,48 @@ instance Renderable x => Renderable (Proof x) where
             lengthFormulas = maximum $ T.length <$> rendFormulas
             midFormulas = T.center lengthFormulas ' ' <$> rendFormulas
 
-            showReferences fs n = T.intercalate "," $
-                fromString . show . (+ n) <$> fs
-            fullReferences = zipWith showReferences (references pf) [2..]
-            leftReasons = "Assumption" :
-                zipWith (\x y -> T.unwords [x,y]) (reasons pf) fullReferences
+            leftReasons = zipWith renderDeduction (Assumption:reasons pf) [1..]
 
--- Create a proof that applies a rule to one formula to get another
-simpleRule :: WFF x -> WFF x -> Text -> Proof x
-simpleRule start end reason = Proof [start, end] [reason] [[-1]]
+-- Create a proof that applies an algebraic rule
+algebraicRule ::
+    AlgebraicRule -> BinaryOperator -> BinaryOperator -> Proof Integer
+algebraicRule rule op1 op2 = Proof [start, end] [Algebraic rule 1] where
+    (start,end) = makeEquivs rule op1 op2
+
+-- Create a proof that applies an equivalence rule
+equivalenceRule :: EquivRule -> Proof Integer
+equivalenceRule rule = Proof [start, end] [Equiv rule 1] where
+    (start, end) = getEquivs rule
+
+-- Create a proof that applies a simple rule
+simpleRule :: SimpleRule -> Proof Integer
+simpleRule rule = Proof [start, end] [Simple rule 1] where
+    (start, end) = getImplies rule
 
 {-
-    Create a proof that applies a rule that combines two formulas from the end
+    Create a proof that applies a complex rule using the end
     of two proofs that start with the same formula
 -}
-complexRule :: (Ord x, Labeling x) => WFF x -> WFF x -> WFF x -> Text ->
-    Proof x -> Proof x -> Proof x
-complexRule in1 in2 out reason pf1 pf2
+complexRule :: ComplexRule -> Proof Integer -> Proof Integer -> Proof Integer
+complexRule rule pf1 pf2
     | length1 == 0 && length2 == 0 = Proof
         ( formulas1 ++ [final] )
-        [reason]
-        [[-1,-1]]
+        [Complex rule 1 1]
     | length1 == 0 = Proof
         ( formulas2 ++ [final] )
-        ( reasons pf2 ++ [reason] )
-        ( references pf2 ++ [[-1-length2, -1]] )
+        ( reasons pf2 ++ [Complex rule 1 (1+length2)] )
     | length2 == 0 = Proof
         ( formulas1 ++ [final] )
-        ( reasons pf1 ++ [reason] )
-        ( references pf1 ++ [[-1-length1, -1]] )
+        ( reasons pf1 ++ [Complex rule (1+length1) 1] )
     | otherwise = Proof
         ( formulas1 ++ tail formulas2 ++ [final] )
-        ( reasons pf1 ++ reasons pf2 ++ [reason] )
         ( concat
-            [ references pf1
-            , [(\x -> x - length1) <$> head (references pf2)]
-            , tail $ references pf2
-            , [[-1-length2, -1]]
+            [ reasons pf1
+            , zipWith (changeRef length1) (reasons pf2) [1..]
+            , [Complex rule (length2 + 1) 1]
             ] )
     where
+        (in1, in2, out) = getParts rule
         start1 = Left <$> head (formulas pf1)
         start2 = Right <$> head (formulas pf2)
         m1 = case W.matchPref (either preserve preserve) start1 start2 of
@@ -258,5 +258,5 @@ complexRule in1 in2 out reason pf1 pf2
                 , W.applyMap m2 . fmap Left <$> formulas2'
                 , [W.applyMap m2 $ fmap Right out]
                 ]
-        length1 = length $ reasons pf1
-        length2 = length $ reasons pf2
+        length1 = toInteger $ length $ reasons pf1
+        length2 = toInteger $ length $ reasons pf2

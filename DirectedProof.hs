@@ -21,6 +21,7 @@ import qualified Proof as P
 import ReLabel (Labeling, SmartIndex(..))
 import WFF (WFF(..))
 import Render (Renderable(..))
+import Deduction
 
 -- A one directional proof
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
@@ -137,10 +138,8 @@ assumptions (a:as) = foldM nproof a as where
     nproof conj newa = do
         W.tell $ DirectedProof $ P.Proof
             [conj, newa]
-            ["Assumption"]
-            [[]]
+            [Assumption]
         W.tell $ DirectedProof $ P.Proof
             [newa, conj :&: newa]
-            ["Conjunction"]
-            [[(-2),(-1)]]
+            [Complex Conjunction 2 1]
         return $ conj :&: newa
