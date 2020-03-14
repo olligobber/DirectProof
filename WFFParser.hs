@@ -74,8 +74,8 @@ binOpP = orP <|> andP <|> impliesP <|> equalP <?> "binary operator"
 
 -- Parse a binary or other expression
 binaryOrExpP :: WFFParser
-binaryOrExpP = (&) <$> safeExpressionP <*> (
-    ((spaces *> fmap flip binOpP <* spaces) <*> safeExpressionP) <|>
+binaryOrExpP = (&) <$> (safeExpressionP <* spaces) <*> (
+    ((fmap flip binOpP <* spaces) <*> safeExpressionP) <|>
     (id <$ string "")
     )
 
