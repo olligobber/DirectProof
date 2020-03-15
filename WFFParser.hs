@@ -40,13 +40,13 @@ notP = Not <$ (string "-" <|> string "~" <|> string "!" <|> string "¬") <?>
 -- Parse Or symbols
 orP :: Parsec Text () (WFF x -> WFF x -> WFF x)
 orP = (:|:) <$
-    (string "\\/" <|> (string "|" <* (string "" <|> string "|")) <|>
+    (string "\\/" <|> (string "|" <* (string "|" <|> string "")) <|>
         string "+" <|> string ";" <|> string "∨") <?> "disjunction operator"
 
 -- Parse And symbols
 andP :: Parsec Text () (WFF x -> WFF x -> WFF x)
 andP = (:&:) <$
-    (string "/\\" <|> (string "&" <* (string "" <|> string "&")) <|>
+    (string "/\\" <|> (string "&" <* (string "&" <|> string "")) <|>
         string "*" <|> string "^" <|> string "," <|> string "∧") <?>
     "conjunction operator"
 
