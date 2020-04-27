@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module DirectedProof (
-    -- Types and conversions
-    DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
-    identity, assumptions,
-    -- Lifts
-    liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
-    liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
+	-- Types and conversions
+	DirectedProof, toPlain, fromTyped, EquivProof, toDirected, fromIso, invert,
+	identity, assumptions,
+	-- Lifts
+	liftAndLeft, liftAndRight, liftOrLeft, liftOrRight, liftImpliesLeft,
+	liftImpliesRight, liftEquivLeft, liftEquivRight, liftNot
 ) where
 
 import Control.Monad.Writer (Writer)
@@ -25,28 +25,28 @@ import Deduction
 
 -- A one directional proof
 newtype DirectedProof x = DirectedProof { toPlain :: Proof x }
-    deriving (Show, Eq)
+	deriving (Show, Eq)
 
 -- Traversable functor on propositions
 instance Functor DirectedProof where
-    fmap f = DirectedProof . fmap f . toPlain
+	fmap f = DirectedProof . fmap f . toPlain
 
 instance Foldable DirectedProof where
-    foldMap f = foldMap f . toPlain
+	foldMap f = foldMap f . toPlain
 
 instance Traversable DirectedProof where
-    sequenceA = fmap DirectedProof . sequenceA . toPlain
+	sequenceA = fmap DirectedProof . sequenceA . toPlain
 
 -- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (DirectedProof x) where
-    (DirectedProof p1) <> (DirectedProof p2) = DirectedProof $ p1 <> p2
+	(DirectedProof p1) <> (DirectedProof p2) = DirectedProof $ p1 <> p2
 
 instance (Ord x, Labeling x) => Monoid (DirectedProof x) where
-    mempty = DirectedProof mempty
+	mempty = DirectedProof mempty
 
 -- Pretty printing for the user
 instance Renderable x => Renderable (DirectedProof x) where
-    render = render . toPlain
+	render = render . toPlain
 
 -- Remove typing information
 fromTyped :: a |- b -> DirectedProof Integer
@@ -54,28 +54,28 @@ fromTyped = DirectedProof . T.toPlain
 
 -- Equivalence proof
 newtype EquivProof x = EquivProof { toDirected :: DirectedProof x }
-    deriving Show
+	deriving Show
 
 -- Traversable functor on propositions
 instance Functor EquivProof where
-    fmap f = EquivProof . fmap f . toDirected
+	fmap f = EquivProof . fmap f . toDirected
 
 instance Foldable EquivProof where
-    foldMap f = foldMap f . toDirected
+	foldMap f = foldMap f . toDirected
 
 instance Traversable EquivProof where
-    sequenceA = fmap EquivProof . sequenceA . toDirected
+	sequenceA = fmap EquivProof . sequenceA . toDirected
 
 -- Monoid on left to right composition
 instance (Ord x, Labeling x) => Semigroup (EquivProof x) where
-    (EquivProof p1) <> (EquivProof p2) = EquivProof $ p1 <> p2
+	(EquivProof p1) <> (EquivProof p2) = EquivProof $ p1 <> p2
 
 instance (Ord x, Labeling x) => Monoid (EquivProof x) where
-    mempty = EquivProof mempty
+	mempty = EquivProof mempty
 
 -- Pretty printing for the user
 instance Renderable x => Renderable (EquivProof x) where
-    render = render . toDirected
+	render = render . toDirected
 
 -- Empty proof
 identity :: WFF x -> EquivProof x
@@ -93,53 +93,53 @@ invert = EquivProof . DirectedProof . P.invert . toPlain . toDirected
 
 liftAndRight :: Labeling x => EquivProof x -> EquivProof x
 liftAndRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftRight (:&:) p
+	P.liftRight (:&:) p
 
 liftAndLeft :: Labeling x => EquivProof x -> EquivProof x
 liftAndLeft (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftLeft (:&:) p
+	P.liftLeft (:&:) p
 
 liftOrRight :: Labeling x => EquivProof x -> EquivProof x
 liftOrRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftRight (:|:) p
+	P.liftRight (:|:) p
 
 liftOrLeft :: Labeling x => EquivProof x -> EquivProof x
 liftOrLeft (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftLeft (:|:) p
+	P.liftLeft (:|:) p
 
 liftImpliesRight :: Labeling x => EquivProof x -> EquivProof x
 liftImpliesRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftRight (:>:) p
+	P.liftRight (:>:) p
 
 liftImpliesLeft :: Labeling x => EquivProof x -> EquivProof x
 liftImpliesLeft (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftLeft (:>:) p
+	P.liftLeft (:>:) p
 
 liftEquivRight :: Labeling x => EquivProof x -> EquivProof x
 liftEquivRight (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftRight (:=:) p
+	P.liftRight (:=:) p
 
 liftEquivLeft :: Labeling x => EquivProof x -> EquivProof x
 liftEquivLeft (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.liftLeft (:=:) p
+	P.liftLeft (:=:) p
 
 liftNot :: Labeling x => EquivProof x -> EquivProof x
 liftNot (EquivProof (DirectedProof p)) = EquivProof $ DirectedProof $
-    P.mapWFF Not p
+	P.mapWFF Not p
 
 -- Convert assumptions to a single formula
 assumptions :: Ord x => [WFF (SmartIndex x)] ->
-    Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
+	Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
 assumptions [] = error "Cannot have a proof with no assumptions"
 assumptions [a] = a <$ W.tell (DirectedProof $ P.identity a)
 assumptions (a:as) = foldM nproof a as where
-    nproof :: Ord x => WFF (SmartIndex x) -> WFF (SmartIndex x) ->
-        Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
-    nproof conj newa = do
-        W.tell $ DirectedProof $ P.Proof
-            [conj, newa]
-            [Assumption]
-        W.tell $ DirectedProof $ P.Proof
-            [newa, conj :&: newa]
-            [Complex Conjunction 2 1]
-        return $ conj :&: newa
+	nproof :: Ord x => WFF (SmartIndex x) -> WFF (SmartIndex x) ->
+		Writer (DirectedProof (SmartIndex x)) (WFF (SmartIndex x))
+	nproof conj newa = do
+		W.tell $ DirectedProof $ P.Proof
+			[conj, newa]
+			[Assumption]
+		W.tell $ DirectedProof $ P.Proof
+			[newa, conj :&: newa]
+			[Complex Conjunction 2 1]
+		return $ conj :&: newa

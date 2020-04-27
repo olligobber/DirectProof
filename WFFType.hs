@@ -7,13 +7,13 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module WFFType (
-    Not,
-    type (/\)(),
-    type (\/)(),
-    type (-->)(),
-    type (<->)(),
-    BinOp(getop),
-    AlgOp
+	Not,
+	type (/\)(),
+	type (\/)(),
+	type (-->)(),
+	type (<->)(),
+	BinOp(getop),
+	AlgOp
 ) where
 
 import WFF (WFF(..), BinaryOperator)
@@ -31,19 +31,19 @@ data Not a
 
 -- Binary operations class, used for lifts of proofs
 class BinOp (b :: * -> * -> *) where
-    getop :: BinaryOperator
+	getop :: BinaryOperator
 
 instance BinOp (/\) where
-    getop = (:&:)
+	getop = (:&:)
 
 instance BinOp (\/) where
-    getop = (:|:)
+	getop = (:|:)
 
 instance BinOp (-->) where
-    getop = (:>:)
+	getop = (:>:)
 
 instance BinOp (<->) where
-    getop = (:=:)
+	getop = (:=:)
 
 -- Algebraic operations class, used for algebraic equivalence rules
 class (BinOp b, BinOp c) => AlgOp b c | b -> c, c -> b

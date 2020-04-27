@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Render (
-    Renderable(..),
-    putRender
+	Renderable(..),
+	putRender
 ) where
 
 import Data.Map.Lazy (Map)
@@ -15,36 +15,36 @@ import Data.String (fromString)
 
 -- Types with pretty rendering
 class Renderable x where
-    render :: x -> Text
+	render :: x -> Text
 
 instance Renderable Integer where
-    render = fromString . show
+	render = fromString . show
 
 instance Renderable Text where
-    render = id
+	render = id
 
 instance Renderable String where
-    render = fromString
+	render = fromString
 
 instance Renderable Bool where
-    render = fromString . show
+	render = fromString . show
 
 instance Renderable (Maybe Bool) where
-    render (Just True) = "True"
-    render Nothing = "Unknown"
-    render (Just False) = "False"
+	render (Just True) = "True"
+	render Nothing = "Unknown"
+	render (Just False) = "False"
 
 instance (Renderable k, Renderable v) => Renderable (Map k v) where
-    render m = T.unlines $
-        zipWith formatCol rightKeys leftValues
-        where
-            formatCol k v = k <> " ↦ " <> v
+	render m = T.unlines $
+		zipWith formatCol rightKeys leftValues
+		where
+			formatCol k v = k <> " ↦ " <> v
 
-            rendKeys = render <$> M.keys m
-            lengthKeys = maximum $ T.length <$> rendKeys
-            rightKeys = T.justifyRight lengthKeys ' ' <$> rendKeys
+			rendKeys = render <$> M.keys m
+			lengthKeys = maximum $ T.length <$> rendKeys
+			rightKeys = T.justifyRight lengthKeys ' ' <$> rendKeys
 
-            leftValues = render <$> M.elems m
+			leftValues = render <$> M.elems m
 
 putRender :: Renderable x => x -> IO ()
 putRender = TIO.putStr . render
