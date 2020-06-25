@@ -28,7 +28,7 @@ import WFF (WFF(..))
 import WFFType
 import DirectedProof (DirectedProof, EquivProof)
 import qualified DirectedProof as D
-import TypedProof (type (|~)(), type (|-)())
+import TypedProof (type (-||-)(), type (|-)())
 import qualified TypedProof as T
 import ReLabel (SmartIndex(..))
 
@@ -67,10 +67,10 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
 	| left == right = do
 		nrights <- W.censor D.liftAndRight $ bringForward lefts $ Clause rights
 		W.tell $ Index <$> D.fromIso
-			(T.association :: a /\ (b /\ c) |~ (a /\ b) /\ c)
+			(T.association :: a /\ (b /\ c) -||- (a /\ b) /\ c)
 		return nrights
 	| rights `isSubsequenceOf` leftss = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 		return $ Clause [right]
 	| otherwise = do
 		Clause nrights <- W.censor D.liftAndRight $ bringForward leftss $
@@ -79,7 +79,7 @@ bringForward leftss@(left:lefts) clause@(Clause (right:rights))
 			T.association >>>
 			T.liftLeft T.commutation >>>
 			T.invert T.association
-			:: a /\ (b /\ c) |~ b /\ (a /\ c)
+			:: a /\ (b /\ c) -||- b /\ (a /\ c)
 			)
 		return $ Clause $ right:nrights
 
@@ -168,17 +168,17 @@ insertClause _ (DNF []) = error "Invalid DNF"
 insertClause clause dnf@(DNF [right])
 	| clause < right = return $ DNF [clause,right]
 	| clause == right = do
-		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a \/ a |~ a)
+		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a \/ a -||- a)
 		return dnf
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 		return $ DNF [right, clause]
 insertClause clause dnf@(DNF rightss@(right:rights))
 	| clause < right = return $ DNF $ clause:rightss
 	| clause == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.association >>> T.liftLeft (T.invert T.idempotence)
-			:: a \/ (a \/ b) |~ a \/ b
+			:: a \/ (a \/ b) -||- a \/ b
 			)
 		return dnf
 	| otherwise = do
@@ -186,7 +186,7 @@ insertClause clause dnf@(DNF rightss@(right:rights))
 			T.association >>>
 			T.liftLeft T.commutation >>>
 			T.invert T.association
-			:: a \/ (b \/ c) |~ b \/ (a \/ c)
+			:: a \/ (b \/ c) -||- b \/ (a \/ c)
 			)
 		DNF . (right:) . clauses <$>
 			W.censor D.liftOrRight (insertClause clause $ DNF rights)
@@ -200,7 +200,7 @@ addEnd (DNF []) = error "Invalid DNF"
 addEnd (DNF [_]) = mempty
 addEnd (DNF (_:cs)) = mconcat
 	[ Index <$> D.fromIso
-		(T.invert T.association :: (a \/ b) \/ c |~ a \/ (b \/ c))
+		(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
 	, D.liftOrLeft (addEnd $ DNF cs)
 	]
 
@@ -241,13 +241,13 @@ removeImpEq :: Ord x => WFF (SmartIndex x) -> EW x (WFF (SmartIndex x))
 removeImpEq (left :>: right) = do
 	nleft <- W.censor D.liftImpliesLeft $ removeImpEq left
 	nright <- W.censor D.liftImpliesRight $ removeImpEq right
-	W.tell $ Index <$> D.fromIso (T.defImplication :: a --> b |~ Not a \/ b)
+	W.tell $ Index <$> D.fromIso (T.defImplication :: a --> b -||- Not a \/ b)
 	return $ Not nleft :|: nright
 removeImpEq (left :=: right) = do
 	nleft <- W.censor D.liftEquivLeft $ removeImpEq left
 	nright <- W.censor D.liftEquivRight $ removeImpEq right
 	W.tell $ Index <$> D.fromIso
-		(T.defEquivalence :: a <-> b |~ (a /\ b) \/ (Not a /\ Not b))
+		(T.defEquivalence :: a <-> b -||- (a /\ b) \/ (Not a /\ Not b))
 	return $ (nleft :&: nright) :|: (Not nleft :&: Not nright)
 removeImpEq (left :|: right) = do
 	nleft <- W.censor D.liftOrLeft $ removeImpEq left
@@ -263,13 +263,13 @@ removeImpEq w@(Prop _) = return w
 -- Move all negations next to atoms in a formula
 moveNotIn :: Ord x => WFF (SmartIndex x) -> EW x (WFF (SmartIndex x))
 moveNotIn (Not (Not w)) = do
-	W.tell $ Index <$> D.fromIso (T.invert T.doubleNegation :: Not (Not a) |~ a)
+	W.tell $ Index <$> D.fromIso (T.invert T.doubleNegation :: Not (Not a) -||- a)
 	moveNotIn w
 moveNotIn (Not (left :|: right)) = do
-	W.tell $ Index <$> D.fromIso (T.deMorgans :: Not (a \/ b) |~ Not a /\ Not b)
+	W.tell $ Index <$> D.fromIso (T.deMorgans :: Not (a \/ b) -||- Not a /\ Not b)
 	moveNotIn $ Not left :&: Not right
 moveNotIn (Not (left :&: right)) = do
-	W.tell $ Index <$> D.fromIso (T.deMorgans :: Not (a /\ b) |~ Not a \/ Not b)
+	W.tell $ Index <$> D.fromIso (T.deMorgans :: Not (a /\ b) -||- Not a \/ Not b)
 	moveNotIn $ Not left :|: Not right
 moveNotIn w@(Not (Prop _)) = return w
 moveNotIn (left :|: right) = do
@@ -290,10 +290,10 @@ moveAndIn (a :&: (b :|: c)) = do
 	nb <- W.censor (D.liftAndRight . D.liftOrLeft) $ moveAndIn b
 	nc <- W.censor (D.liftAndRight . D.liftOrRight) $ moveAndIn c
 	W.tell $ Index <$> D.fromIso
-		(T.distribution :: a /\ (b \/ c) |~ (a /\ b) \/ (a /\ c))
+		(T.distribution :: a /\ (b \/ c) -||- (a /\ b) \/ (a /\ c))
 	moveAndIn $ (na :&: nb) :|: (na :&: nc)
 moveAndIn (left@(_ :|: _) :&: right) = do
-	W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
+	W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 	moveAndIn $ right :&: left
 moveAndIn (left :&: right) = do
 	nleft <- W.censor D.liftAndLeft $ moveAndIn left
@@ -338,17 +338,17 @@ mergeClauses _ [] = error "Invalid clause"
 mergeClauses [left] [right]
 	| left < right = return [left,right]
 	| left == right = do
-		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a /\ a |~ a)
+		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a /\ a -||- a)
 		return [left]
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 		return [right, left]
 mergeClauses [left] rightss@(right:rights)
 	| left < right = return $ left:rightss
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.association >>> T.liftLeft (T.invert T.idempotence)
-			:: a /\ (a /\ b) |~ a /\ b
+			:: a /\ (a /\ b) -||- a /\ b
 			)
 		return rightss
 	| otherwise = do
@@ -356,29 +356,29 @@ mergeClauses [left] rightss@(right:rights)
 			T.association >>>
 			T.liftLeft T.commutation >>>
 			T.invert T.association
-			:: a /\ (b /\ c) |~ b /\ (a /\ c)
+			:: a /\ (b /\ c) -||- b /\ (a /\ c)
 			)
 		(right:) <$> (W.censor D.liftAndRight $ mergeClauses [left] rights)
 mergeClauses leftss@(left:lefts) [right]
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
-			(T.invert T.association :: (a /\ b) /\ c |~ a /\ (b /\ c))
+			(T.invert T.association :: (a /\ b) /\ c -||- a /\ (b /\ c))
 		(left:) <$> (W.censor D.liftAndRight $ mergeClauses lefts [right])
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.commutation >>>
 			T.association >>>
 			T.liftLeft (T.invert T.idempotence)
-			:: (a /\ b) /\ a |~ a /\ b
+			:: (a /\ b) /\ a -||- a /\ b
 			)
 		return leftss
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 		return $ right:leftss
 mergeClauses leftss@(left:lefts) rightss@(right:rights)
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
-			(T.invert T.association :: (a /\ b) /\ c |~ a /\ (b /\ c))
+			(T.invert T.association :: (a /\ b) /\ c -||- a /\ (b /\ c))
 		(left:) <$> (W.censor D.liftAndRight $ mergeClauses lefts rightss)
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
@@ -387,11 +387,11 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
 			T.liftRight (T.invert T.association) >>>
 			T.association >>>
 			T.liftLeft (T.invert T.idempotence)
-			:: (a /\ b) /\ (a /\ c) |~ a /\ (c /\ b)
+			:: (a /\ b) /\ (a /\ c) -||- a /\ (c /\ b)
 			)
 		(left:) <$> (W.censor D.liftAndRight $ mergeClauses rights lefts)
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b |~ b /\ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 		mergeClauses rightss leftss
 
 -- Turns a disjunction into a right associative sorted disjunction
@@ -412,17 +412,17 @@ mergeDNF _ [] = error "Invalid DNF"
 mergeDNF [left] [right]
 	| left < right = return [left,right]
 	| left == right = do
-		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a \/ a |~ a)
+		W.tell $ Index <$> D.fromIso (T.invert T.idempotence :: a \/ a -||- a)
 		return [left]
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 		return [right, left]
 mergeDNF [left] rightss@(right:rights)
 	| left < right = return $ left:rightss
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.association >>> T.liftLeft (T.invert T.idempotence)
-			:: a \/ (a \/ b) |~ a \/ b
+			:: a \/ (a \/ b) -||- a \/ b
 			)
 		return rightss
 	| otherwise = do
@@ -430,29 +430,29 @@ mergeDNF [left] rightss@(right:rights)
 			T.association >>>
 			T.liftLeft T.commutation >>>
 			T.invert T.association
-			:: a \/ (b \/ c) |~ b \/ (a \/ c)
+			:: a \/ (b \/ c) -||- b \/ (a \/ c)
 			)
 		(right:) <$> (W.censor D.liftOrRight $ mergeDNF [left] rights)
 mergeDNF leftss@(left:lefts) [right]
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
-			(T.invert T.association :: (a \/ b) \/ c |~ a \/ (b \/ c))
+			(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
 		(left:) <$> (W.censor D.liftOrRight $ mergeDNF lefts [right])
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.commutation >>>
 			T.association >>>
 			T.liftLeft (T.invert T.idempotence)
-			:: (a \/ b) \/ a |~ a \/ b
+			:: (a \/ b) \/ a -||- a \/ b
 			)
 		return leftss
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 		return $ right:leftss
 mergeDNF leftss@(left:lefts) rightss@(right:rights)
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
-			(T.invert T.association :: (a \/ b) \/ c |~ a \/ (b \/ c))
+			(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
 		(left:) <$> (W.censor D.liftOrRight $ mergeDNF lefts rightss)
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
@@ -461,14 +461,14 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
 			T.liftRight (T.invert T.association) >>>
 			T.association >>>
 			T.liftLeft (T.invert T.idempotence)
-			:: (a \/ b) \/ (a \/ c) |~ a \/ (c \/ b)
+			:: (a \/ b) \/ (a \/ c) -||- a \/ (c \/ b)
 			)
 		(left:) <$> (W.censor D.liftOrRight $ mergeDNF rights lefts)
 	| otherwise = do
-		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 		mergeDNF rightss leftss
 
--- Converts a formula to DNF, and returns a proof WFF |~ DNF
+-- Converts a formula to DNF, and returns a proof WFF -||- DNF
 toDNF :: Ord x => WFF (SmartIndex x) -> EW x (DNF (SmartIndex x))
 toDNF wff = W.censor (D.identity wff <>) $
 	removeImpEq wff >>=

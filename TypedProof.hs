@@ -6,7 +6,7 @@
 
 module TypedProof (
 	-- types and conversions
-	type (|-)(), type (|~)(), invert, toTyped, toPlain, render,
+	type (|-)(), type (-||-)(), invert, toTyped, toPlain, render,
 	-- lifts
 	liftLeft, liftRight, liftNot,
 	-- equivalence rules
@@ -45,75 +45,75 @@ instance Renderable (a |- b) where
 	render (TypedProof pf) = render $ ("p_" <>) . show <$> pf
 
 -- Invertible proofs
-infix 2 |~
-newtype (|~) a b = IsoProof { toTyped :: a |- b }
+infix 2 -||-
+newtype (-||-) a b = IsoProof { toTyped :: a |- b }
 
 -- Allow proof composition similar to |-
-instance Category (|~) where
+instance Category (-||-) where
 	id = IsoProof id
 	IsoProof p2 . IsoProof p1 = IsoProof $ p2 . p1
 
 -- Allow pretty rendering of proofs
-instance Renderable (a |~ b) where
+instance Renderable (a -||- b) where
 	render (IsoProof pf) = render pf
 
-invert :: a |~ b -> b |~ a
+invert :: a -||- b -> b -||- a
 invert (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.invert p
 
 -- Lift invertible proofs by application to subformulas
 
-liftLeft :: forall a b c op. BinOp op => a |~ b -> a `op` c |~ b `op` c
+liftLeft :: forall a b c op. BinOp op => a -||- b -> a `op` c -||- b `op` c
 liftLeft (IsoProof (TypedProof p)) =
 	IsoProof $ TypedProof $ P.liftLeft (getop @op) p
 
-liftRight :: forall a b c op. BinOp op => a |~ b -> c `op` a |~ c `op` b
+liftRight :: forall a b c op. BinOp op => a -||- b -> c `op` a -||- c `op` b
 liftRight (IsoProof (TypedProof p)) =
 	IsoProof $ TypedProof $ P.liftRight (getop @op) p
 
-liftNot :: a |~ b -> Not a |~ Not b
+liftNot :: a -||- b -> Not a -||- Not b
 liftNot (IsoProof (TypedProof p)) = IsoProof $ TypedProof $ P.mapWFF Not p
 
 -- Equivalence rules (invertible)
 
 deMorgans :: forall a b op1 op2. AlgOp op1 op2 =>
-	Not (a `op1` b) |~ Not a `op2` Not b
+	Not (a `op1` b) -||- Not a `op2` Not b
 deMorgans = IsoProof $ TypedProof $
 	P.algebraicRule DeMorgans (getop @op1) (getop @op2)
 
 commutation :: forall a b op op2. AlgOp op op2 =>
-	a `op` b |~ b `op` a
+	a `op` b -||- b `op` a
 commutation = IsoProof $ TypedProof $
 	P.algebraicRule Commutation (getop @op) (getop @op2)
 
 association :: forall a b c op op2. AlgOp op op2 =>
-	a `op` (b `op` c) |~ (a `op` b) `op` c
+	a `op` (b `op` c) -||- (a `op` b) `op` c
 association = IsoProof $ TypedProof $
 	P.algebraicRule Association (getop @op) (getop @op2)
 
 distribution :: forall a b c op1 op2. AlgOp op1 op2 =>
-	a `op1` (b `op2` c) |~ (a `op1` b) `op2` (a `op1` c)
+	a `op1` (b `op2` c) -||- (a `op1` b) `op2` (a `op1` c)
 distribution = IsoProof $ TypedProof $
 	P.algebraicRule Distribution (getop @op1) (getop @op2)
 
-doubleNegation :: a |~ Not (Not a)
+doubleNegation :: a -||- Not (Not a)
 doubleNegation = IsoProof $ TypedProof $ P.equivalenceRule DoubleNegation
 
-transposition :: a --> b |~ Not b --> Not a
+transposition :: a --> b -||- Not b --> Not a
 transposition = IsoProof $ TypedProof $ P.equivalenceRule Transposition
 
-defImplication :: a --> b |~ Not a \/ b
+defImplication :: a --> b -||- Not a \/ b
 defImplication = IsoProof $ TypedProof $ P.equivalenceRule DefImplication
 
-matEquivalence :: a <-> b |~ (a --> b) /\ (b --> a)
+matEquivalence :: a <-> b -||- (a --> b) /\ (b --> a)
 matEquivalence = IsoProof $ TypedProof $ P.equivalenceRule MatEquivalence
 
-defEquivalence :: a <-> b |~ (a /\ b) \/ (Not a /\ Not b)
+defEquivalence :: a <-> b -||- (a /\ b) \/ (Not a /\ Not b)
 defEquivalence = IsoProof $ TypedProof $ P.equivalenceRule DefEquivalence
 
-exportation :: (a /\ b) --> c |~ a --> (b --> c)
+exportation :: (a /\ b) --> c -||- a --> (b --> c)
 exportation = IsoProof $ TypedProof $ P.equivalenceRule Exportation
 
-idempotence :: forall a op op2. AlgOp op op2 => a |~ a `op` a
+idempotence :: forall a op op2. AlgOp op op2 => a -||- a `op` a
 idempotence = IsoProof $ TypedProof $
 	P.algebraicRule Idempotence (getop @op) (getop @op2)
 

@@ -14,7 +14,7 @@ import Control.Category ((>>>))
 import DNF
 import WFFType
 import qualified DirectedProof as D
-import TypedProof (type (|~)(), type (|-)())
+import TypedProof (type (-||-)(), type (|-)())
 import qualified TypedProof as T
 import ReLabel (SmartIndex(..))
 
@@ -60,14 +60,14 @@ nextProgress (DNFConversion Nothing (Just conv) (Just uncon)) =
 	case clauses uncon of
 		[] -> error "Invalid DNF"
 		[unc] -> do
-			W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+			W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 			return $ Right $ DNFConversion (Just unc) (Just conv) Nothing
 		unc:_ -> do
 			W.tell $ Index <$> D.fromIso (
 				T.liftRight T.commutation >>>
 				T.association >>>
 				T.commutation
-				:: a \/ (b \/ c) |~ b \/ (a \/ c)
+				:: a \/ (b \/ c) -||- b \/ (a \/ c)
 				)
 			return $ Right $ DNFConversion (Just unc) (Just conv) (pop uncon)
 nextProgress (DNFConversion (Just c) Nothing Nothing) =
@@ -78,7 +78,7 @@ nextProgress (DNFConversion (Just c) Nothing (Just uncon)) =
 	case clauses uncon of
 		[] -> error "Invalid DNF"
 		[unc] -> do
-			W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b |~ b \/ a)
+			W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 			return $ Right $ DNFConversion
 				(Just unc)
 				(Just $ singleton c)
@@ -88,7 +88,7 @@ nextProgress (DNFConversion (Just c) Nothing (Just uncon)) =
 				T.association >>>
 				T.liftLeft T.commutation >>>
 				T.invert T.association
-				:: a \/ (b \/ c) |~ b \/ (a \/ c)
+				:: a \/ (b \/ c) -||- b \/ (a \/ c)
 				)
 			return $ Right $ DNFConversion
 				(Just unc)
@@ -101,7 +101,7 @@ nextProgress (DNFConversion (Just c) (Just conv) (Just uncon)) =
 			W.tell $ Index <$> D.fromIso (
 				T.association >>>
 				T.commutation
-				:: a \/ (b \/ c) |~ c \/ (a \/ b)
+				:: a \/ (b \/ c) -||- c \/ (a \/ b)
 				)
 			nconv <- W.censor D.liftOrRight $ insertClause c conv
 			return $ Right $ DNFConversion (Just unc) (Just nconv) Nothing
@@ -112,7 +112,7 @@ nextProgress (DNFConversion (Just c) (Just conv) (Just uncon)) =
 				T.association >>>
 				T.commutation >>>
 				T.liftRight T.association
-				:: a \/ (b \/ (c \/ d)) |~ c \/ ((a \/ b) \/ d)
+				:: a \/ (b \/ (c \/ d)) -||- c \/ ((a \/ b) \/ d)
 				)
 			nconv <- W.censor (D.liftOrRight . D.liftOrLeft) $
 				insertClause c conv
@@ -153,7 +153,7 @@ makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
 				W.tell $ Index <$> (D.toDirected . D.fromIso) (
 					T.commutation >>>
 					T.distribution
-					:: (Not a /\ a) \/ b |~ (b \/ Not a) /\ (b \/ a)
+					:: (Not a /\ a) \/ b -||- (b \/ Not a) /\ (b \/ a)
 					)
 			else
 				W.tell $ Index <$> D.fromTyped (
@@ -202,7 +202,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
 				W.tell $ Index <$> (D.toDirected . D.fromIso) (
 					T.commutation >>>
 					T.distribution
-					:: (Not a /\ a) \/ b |~ (b \/ Not a) /\ (b \/ a)
+					:: (Not a /\ a) \/ b -||- (b \/ Not a) /\ (b \/ a)
 					)
 			else
 				W.tell $ Index <$> D.fromTyped (

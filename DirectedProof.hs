@@ -14,7 +14,7 @@ import Control.Monad.Writer (Writer)
 import qualified Control.Monad.Writer as W
 import Control.Monad (foldM)
 
-import TypedProof (type (|-)(), type (|~)())
+import TypedProof (type (|-)(), type (-||-)())
 import qualified TypedProof as T
 import Proof (Proof)
 import qualified Proof as P
@@ -82,7 +82,7 @@ identity :: WFF x -> EquivProof x
 identity = EquivProof . DirectedProof . P.identity
 
 -- Remove typing information
-fromIso :: a |~ b -> EquivProof Integer
+fromIso :: a -||- b -> EquivProof Integer
 fromIso = EquivProof . fromTyped . T.toTyped
 
 -- Reverse a proof
