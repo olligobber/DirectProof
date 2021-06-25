@@ -1,4 +1,3 @@
-{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
 module DNF (
@@ -36,7 +35,7 @@ type EW x = Writer (EquivProof (SmartIndex x))
 type DW x = Writer (DirectedProof (SmartIndex x))
 
 toDW :: EW x v -> DW x v
-toDW = W.mapWriter (\(r, p) -> (r, D.toDirected p))
+toDW = W.mapWriter $ fmap D.toDirected
 
 {-
 	A disjunction of conjunctions of atoms of the form A or Not A.
@@ -112,7 +111,7 @@ removeAtomsAlone removess@(remove:removes) clause@(Clause (atom:atos))
 			T.simplification
 			:: a /\ b |- b
 			)
-		return $ nclause
+		return nclause
 
 {-
 	Removes atoms in the sorted list from a clause, assuming the formula is of
@@ -151,7 +150,7 @@ removeAtoms removess@(remove:removes) clause@(Clause (atom:atos))
 			T.toTyped T.commutation
 			:: (a /\ b) \/ c |- b \/ c
 			)
-		return $ nclause
+		return nclause
 
 -- A DNF with one Clause
 singleton :: Clause x -> DNF x
@@ -201,7 +200,7 @@ addEnd (DNF [_]) = mempty
 addEnd (DNF (_:cs)) = mconcat
 	[ Index <$> D.fromIso
 		(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
-	, D.liftOrLeft (addEnd $ DNF cs)
+	, D.liftOrRight (addEnd $ DNF cs)
 	]
 
 -- Adds a clause to a DNF, with the proof starting from the DNF alone
@@ -228,11 +227,11 @@ addAll cs dnf = case partition (<= largest) cs of
 		W.tell $ D.toDirected $ addEnd dnf
 		return $ DNF $ clauses dnf ++ cs
 	(_, []) -> do
-		foldM (flip addClause) dnf $ cs
+		foldM (flip addClause) dnf cs
 	(smalls, larges) -> do
 		W.tell $ Index <$> D.fromTyped (T.addition :: a |- a \/ b)
 		W.tell $ D.toDirected $ addEnd dnf
-		foldM (flip addClause) (DNF $ clauses dnf ++ larges) $ smalls
+		foldM (flip addClause) (DNF $ clauses dnf ++ larges) smalls
 	where
 		largest = last $ clauses dnf
 
@@ -257,7 +256,7 @@ removeImpEq (left :&: right) = do
 	nleft <- W.censor D.liftAndLeft $ removeImpEq left
 	nright <- W.censor D.liftAndRight $ removeImpEq right
 	return $ nleft :&: nright
-removeImpEq (Not w) = Not <$> (W.censor D.liftNot $ removeImpEq w)
+removeImpEq (Not w) = Not <$> W.censor D.liftNot (removeImpEq w)
 removeImpEq w@(Prop _) = return w
 
 -- Move all negations next to atoms in a formula
@@ -298,7 +297,7 @@ moveAndIn (left@(_ :|: _) :&: right) = do
 moveAndIn (left :&: right) = do
 	nleft <- W.censor D.liftAndLeft $ moveAndIn left
 	nright <- W.censor D.liftAndRight $ moveAndIn right
-	if (nleft == left && nright == right) then
+	if nleft == left && nright == right then
 		return $ left :&: right
 	else
 		moveAndIn $ nleft :&: nright
@@ -358,12 +357,12 @@ mergeClauses [left] rightss@(right:rights)
 			T.invert T.association
 			:: a /\ (b /\ c) -||- b /\ (a /\ c)
 			)
-		(right:) <$> (W.censor D.liftAndRight $ mergeClauses [left] rights)
+		(right:) <$> W.censor D.liftAndRight (mergeClauses [left] rights)
 mergeClauses leftss@(left:lefts) [right]
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
 			(T.invert T.association :: (a /\ b) /\ c -||- a /\ (b /\ c))
-		(left:) <$> (W.censor D.liftAndRight $ mergeClauses lefts [right])
+		(left:) <$> W.censor D.liftAndRight (mergeClauses lefts [right])
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.commutation >>>
@@ -379,7 +378,7 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
 			(T.invert T.association :: (a /\ b) /\ c -||- a /\ (b /\ c))
-		(left:) <$> (W.censor D.liftAndRight $ mergeClauses lefts rightss)
+		(left:) <$> W.censor D.liftAndRight (mergeClauses lefts rightss)
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.invert T.association >>>
@@ -389,7 +388,7 @@ mergeClauses leftss@(left:lefts) rightss@(right:rights)
 			T.liftLeft (T.invert T.idempotence)
 			:: (a /\ b) /\ (a /\ c) -||- a /\ (c /\ b)
 			)
-		(left:) <$> (W.censor D.liftAndRight $ mergeClauses rights lefts)
+		(left:) <$> W.censor D.liftAndRight (mergeClauses rights lefts)
 	| otherwise = do
 		W.tell $ Index <$> D.fromIso (T.commutation :: a /\ b -||- b /\ a)
 		mergeClauses rightss leftss
@@ -432,12 +431,12 @@ mergeDNF [left] rightss@(right:rights)
 			T.invert T.association
 			:: a \/ (b \/ c) -||- b \/ (a \/ c)
 			)
-		(right:) <$> (W.censor D.liftOrRight $ mergeDNF [left] rights)
+		(right:) <$> W.censor D.liftOrRight (mergeDNF [left] rights)
 mergeDNF leftss@(left:lefts) [right]
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
 			(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
-		(left:) <$> (W.censor D.liftOrRight $ mergeDNF lefts [right])
+		(left:) <$> W.censor D.liftOrRight (mergeDNF lefts [right])
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.commutation >>>
@@ -453,7 +452,7 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
 	| left < right = do
 		W.tell $ Index <$> D.fromIso
 			(T.invert T.association :: (a \/ b) \/ c -||- a \/ (b \/ c))
-		(left:) <$> (W.censor D.liftOrRight $ mergeDNF lefts rightss)
+		(left:) <$> W.censor D.liftOrRight (mergeDNF lefts rightss)
 	| left == right = do
 		W.tell $ Index <$> D.fromIso (
 			T.invert T.association >>>
@@ -463,7 +462,7 @@ mergeDNF leftss@(left:lefts) rightss@(right:rights)
 			T.liftLeft (T.invert T.idempotence)
 			:: (a \/ b) \/ (a \/ c) -||- a \/ (c \/ b)
 			)
-		(left:) <$> (W.censor D.liftOrRight $ mergeDNF rights lefts)
+		(left:) <$> W.censor D.liftOrRight (mergeDNF rights lefts)
 	| otherwise = do
 		W.tell $ Index <$> D.fromIso (T.commutation :: a \/ b -||- b \/ a)
 		mergeDNF rightss leftss

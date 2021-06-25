@@ -2,8 +2,8 @@
 
 module WFFParser (expressionP, parseWFF) where
 
-import Text.Parsec (Parsec,
-	string, spaces, alphaNum, char, (<?>), between, many1, parse, ParseError)
+import Text.Parsec (Parsec, ParseError,
+	string, spaces, alphaNum, char, (<?>), between, many1, parse, eof)
 import Control.Applicative ((<|>))
 import Data.Text (Text)
 import Data.String (fromString)
@@ -94,4 +94,4 @@ expressionP = spaces *> binaryOrExpP <* spaces
 
 -- Given a source and formula in text, parse it
 parseWFF :: String -> Text -> Either ParseError (WFF Text)
-parseWFF = parse expressionP
+parseWFF = parse $ expressionP <* eof

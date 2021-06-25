@@ -1,4 +1,3 @@
-{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeOperators #-}
 
 module DNFConvert (
@@ -131,7 +130,7 @@ getContradiction clause = case
 
 -- Check if the second is a subclause of the first
 isSubClause :: Eq x => Clause x -> Clause x -> Bool
-isSubClause = flip (isSubsequenceOf `on` atoms)
+isSubClause = flip isSubsequenceOf `on` atoms
 
 -- Find the longest subclause of the given clause from a DNF
 bestSubClause :: Eq x => Clause x -> DNF x -> Maybe (Clause x)
@@ -179,7 +178,7 @@ makeProgress goal (DNFConversion (Just inP) Nothing Nothing) =
 						)
 					) >>>
 				T.hypotheticalS
-					(T.simplification)
+					T.simplification
 					(T.toTyped T.commutation >>> T.simplification)
 				>>>
 				T.toTyped (
@@ -228,7 +227,7 @@ makeProgress goal (DNFConversion (Just inP) conv unconv) =
 						)
 					) >>>
 				T.hypotheticalS
-					(T.simplification)
+					T.simplification
 					(T.toTyped T.commutation >>> T.simplification)
 				>>>
 				T.toTyped (
